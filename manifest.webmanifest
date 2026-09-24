@@ -1,0 +1,22 @@
+{
+  "name": "Kratingdaeng Sales Input",
+  "short_name": "KTD Sales",
+  "description": "Offline-first event sales input for Kratingdaeng Music Festival",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6F6F1",
+  "theme_color": "#FFD900",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

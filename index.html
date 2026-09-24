@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFD900">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="offlineBar" class="offline-bar hidden">OFFLINE • INPUT TETAP TERSIMPAN DI HP</div>
+
+  <main class="app-shell">
+    <section id="loginView" class="login-card">
+      <div class="brand brand-centered">
+        <div class="brand-mark">
+          <img src="./logo.webp"
+               width="90" height="90" decoding="async" fetchpriority="high"
+               alt="Kratingdaeng"
+               onerror="this.style.display='none';this.parentElement.classList.add('logo-fallback')">
+        </div>
+        <div class="brand-copy">
+          <h1>Sales Input</h1>
+          <p>Kratingdaeng Music Festival</p>
+        </div>
+      </div>
+
+      <label>USERNAME</label>
+      <input id="username" autocomplete="username" placeholder="Masukkan username">
+
+      <label>PASSWORD</label>
+      <input id="password" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Masukkan password">
+
+      <label>LOKASI VENUE</label>
+      <select id="venue">
+        <option value="">Pilih lokasi venue</option>
+        <option value="STATIC|Cooltura Semarang|Main Booth">Main Booth — Cooltura Semarang</option>
+        <option value="STATIC|Cooltura Semarang|Drink Stall 1">Drink Stall 1 — Cooltura Semarang</option>
+        <option value="STATIC|Cooltura Semarang|Drink Stall 2">Drink Stall 2 — Cooltura Semarang</option>
+        <option value="STATIC|Cooltura Semarang|Drink Stall 3">Drink Stall 3 — Cooltura Semarang</option>
+        <option value="STATIC|Cooltura Semarang|Drink Stall 4">Drink Stall 4 — Cooltura Semarang</option>
+      </select>
+
+      <button id="loginBtn" class="btn-primary">MASUK</button>
+      <div id="loginMsg" class="message error"></div>
+    </section>
+
+    <section id="salesView" class="hidden">
+      <div class="app-brandline">
+        <div class="mini-logo">
+          <img src="./logo.webp"
+               width="44" height="44" decoding="async" loading="lazy"
+               alt="Kratingdaeng"
+               onerror="this.style.display='none'">
+        </div>
+        <div class="app-brand-copy">
+          <strong>Sales Input</strong>
+          <span>Kratingdaeng Music Festival</span>
+        </div>
+      </div>
+
+      <header class="header">
+        <div>
+          <span class="eyebrow">LOGIN SEBAGAI</span>
+          <h2 id="userName">User</h2>
+          <p id="venueLabel"></p>
+        </div>
+        <button id="logoutBtn" class="btn-text">Logout</button>
+      </header>
+
+      <div class="status">
+        <span id="netStatus" class="chip">ONLINE</span>
+        <span id="pendingChip" class="chip">0 PENDING</span>
+      </div>
+
+      <section class="panel">
+        <div class="section-title">Pilih Multi Item</div>
+        <div class="hint product-hint">Tekan + pada beberapa produk. Semua item akan tersimpan dalam satu pesanan.</div>
+        <div id="productTabs" class="category-tabs"></div>
+        <div id="productList" class="product-list"></div>
+      </section>
+
+      <section id="cartPanel" class="panel compact">
+        <div class="row between center">
+          <div>
+            <div class="section-title no-margin">Keranjang</div>
+            <div id="cartInfo" class="hint">Belum ada item</div>
+          </div>
+          <button id="clearCartBtn" class="btn-small">Kosongkan</button>
+        </div>
+        <div id="cartList" class="cart-list"></div>
+      </section>
+
+      <section class="panel compact">
+        <div class="section-title">Pembayaran</div>
+        <div class="payment-grid">
+          <button class="payment active" data-value="Cash">CASH</button>
+          <button class="payment" data-value="QRIS">QRIS</button>
+        </div>
+      </section>
+
+      <section class="panel compact">
+        <label class="top-label">KETERANGAN <span>(OPSIONAL)</span></label>
+        <input id="note" maxlength="250" placeholder="Catatan transaksi">
+      </section>
+
+      <section class="checkout">
+        <div>
+          <span>TOTAL PESANAN</span>
+          <strong id="total">Rp0</strong>
+          <small id="totalQty">0 item</small>
+        </div>
+        <button id="saveBtn" class="btn-primary save">SIMPAN</button>
+      </section>
+
+      <div id="saveMsg" class="message success"></div>
+
+      <section class="summary-panel">
+        <div><span>Pending Sync Saya</span><strong id="pendingCount">0</strong>
+        <div class="offline-metrics">
+          <div><span>Offline</span><strong id="offlineDuration">0m</strong></div>
+          <div><span>Last Sync</span><strong id="lastSyncAt">Belum pernah</strong></div>
+        </div>
+</div>
+        <div><span>Offline Hari Ini</span><strong id="todayCount">0</strong></div>
+        <button id="syncBtn" class="btn-dark">SYNC SEKARANG</button>
+      </section>
+
+      <section class="sales-summary panel">
+        <div class="summary-head">
+          <div>
+            <div class="section-title no-margin">Hasil Penjualan Saya</div>
+            <div class="hint">Report Sales + data offline milik akun ini</div>
+          </div>
+          <button id="refreshSummaryBtn" class="btn-small">Refresh</button>
+        </div>
+
+        <div class="grand-totals">
+          <div><span>Total Qty</span><strong id="myTotalQty">0</strong></div>
+          <div><span>Total Value</span><strong id="myTotalValue">Rp0</strong></div>
+        </div>
+
+        <div class="summary-block">
+          <div class="summary-subtitle">PER ITEM</div>
+          <div id="itemSummary" class="summary-table empty-state">Belum ada penjualan.</div>
+        </div>
+
+        <div class="summary-block">
+          <div class="summary-subtitle">PER LOKASI</div>
+          <div id="locationSummary" class="summary-table empty-state">Belum ada penjualan.</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./config.js"></script>
+  <script src="./bridge-client.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    }
+  </script>
+</body>
+</html>
