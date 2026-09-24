@@ -4,24 +4,24 @@ const KtdBridge = (() => {
   let readyPromise = null;
   let readyResolve = null;
   let readyReject = null;
-  let seq = 0;
-  let mountSeq = 0;
+  let mountId = 0;
+  let requestSeq = 0;
 
   const pending = new Map();
 
-  function backendUrl() {
-    const raw = String(window.KTD_CONFIG?.GAS_WEB_APP_URL || '').trim();
+  function config() {
+    return window.KTD_CONFIG || {};
+  }
 
-    if (!raw || raw.includes('PASTE_GAS_WEB_APP')) {
-      throw new Error(
-        'GAS_WEB_APP_URL belum diisi di config.js.'
-      );
+  function backendUrl() {
+    const raw = String(config().GAS_WEB_APP_URL || '').trim();
+
+    if (!raw) {
+      throw new Error('URL backend Apps Script belum diisi di config.js.');
     }
 
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/i.test(raw)) {
-      throw new Error(
-        'GAS_WEB_APP_URL harus URL deployment Apps Script yang berakhir /exec.'
-      );
+      throw new Error('URL backend harus URL Apps Script /exec.');
     }
 
     return raw;
@@ -34,7 +34,15 @@ const KtdBridge = (() => {
     });
   }
 
-  function postPing() {
+  function destroyIframe() {
+    if (iframe) {
+      try { iframe.remove(); } catch (_) {}
+    }
+    iframe = null;
+    ready = false;
+  }
+
+  function sendPing() {
     try {
       if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage({
@@ -42,18 +50,14 @@ const KtdBridge = (() => {
           type: 'ping'
         }, '*');
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
   function mount() {
     const url = backendUrl();
-    const thisMount = ++mountSeq;
+    const currentMount = ++mountId;
 
-    if (iframe) {
-      try { iframe.remove(); } catch (e) {}
-    }
-
-    ready = false;
+    destroyIframe();
     resetReadyPromise();
 
     iframe = document.createElement('iframe');
@@ -62,50 +66,64 @@ const KtdBridge = (() => {
     iframe.setAttribute('aria-hidden', 'true');
     iframe.style.cssText =
       'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;' +
-      'border:0;left:-9999px;top:-9999px;';
+      'border:0;left:-10000px;top:-10000px;';
 
     iframe.onload = () => {
-      if (thisMount !== mountSeq) return;
+      if (currentMount !== mountId) return;
 
-      // Handshake aktif. Ini membuat bridge lebih tahan terhadap
-      // redirect /exec -> googleusercontent.
-      postPing();
-      setTimeout(postPing, 350);
-      setTimeout(postPing, 1000);
+      sendPing();
+      setTimeout(sendPing, 300);
+      setTimeout(sendPing, 900);
+      setTimeout(sendPing, 1800);
     };
 
     iframe.onerror = () => {
-      if (thisMount !== mountSeq) return;
+      if (currentMount !== mountId) return;
+
       if (readyReject) {
         readyReject(new Error(
-          'Backend Apps Script gagal dimuat. Periksa URL /exec dan deployment.'
+          'Backend Apps Script gagal dimuat. Periksa deployment /exec.'
         ));
       }
     };
 
     const sep = url.includes('?') ? '&' : '?';
-    iframe.src = url + sep + 'bridge=1&t=' + Date.now();
+    iframe.src =
+      url +
+      sep +
+      'bridge=1' +
+      '&v=' + encodeURIComponent(String(config().APP_VERSION || '1')) +
+      '&t=' + Date.now();
 
     document.body.appendChild(iframe);
   }
 
-  async function init(timeoutMs = 15000) {
+  async function init(timeoutMs) {
+    if (!navigator.onLine) {
+      throw new Error('Perangkat sedang offline.');
+    }
+
     if (ready) return true;
 
-    if (!readyPromise) {
+    if (!readyPromise || !iframe) {
       mount();
     }
 
-    // PENTING:
-    // Versi lama melakukan "await init()" tanpa timeout sehingga tombol
-    // bisa berhenti di MEMERIKSA... selamanya jika Bridge tidak pernah ready.
+    const limit = Number(
+      timeoutMs ||
+      config().BRIDGE_READY_TIMEOUT_MS ||
+      12000
+    );
+
     await Promise.race([
       readyPromise,
-      new Promise((_, reject) => setTimeout(() => {
-        reject(new Error(
-          'Backend belum merespons. Pastikan Apps Script sudah Deploy New Version, akses Anyone, dan Bridge.html tersedia.'
-        ));
-      }, timeoutMs))
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(
+            'Backend belum merespons. Pastikan Apps Script sudah di-deploy sebagai Web App dan aksesnya Anyone.'
+          ));
+        }, limit);
+      })
     ]);
 
     return true;
@@ -113,56 +131,33 @@ const KtdBridge = (() => {
 
   function reload() {
     if (!navigator.onLine) return;
-
-    try {
-      mount();
-    } catch (e) {
-      ready = false;
-    }
+    mount();
   }
-
-  window.addEventListener('message', event => {
-    if (!iframe || event.source !== iframe.contentWindow) return;
-
-    const msg = event.data || {};
-    if (!msg.ktdBridge) return;
-
-    if (msg.type === 'ready') {
-      ready = true;
-      if (readyResolve) readyResolve(true);
-      return;
-    }
-
-    if (msg.type === 'response' && msg.id && pending.has(msg.id)) {
-      const job = pending.get(msg.id);
-      pending.delete(msg.id);
-      clearTimeout(job.timer);
-
-      if (msg.ok) {
-        job.resolve(msg.result);
-      } else {
-        job.reject(new Error(msg.error || 'Backend error'));
-      }
-    }
-  });
 
   async function call(name, payload) {
     if (!navigator.onLine) {
       throw new Error('Perangkat sedang offline.');
     }
 
-    await init(15000);
+    await init();
 
-    const id = 'req-' + Date.now() + '-' + (++seq);
-    const timeout =
-      Number(window.KTD_CONFIG?.REQUEST_TIMEOUT_MS || 30000);
+    const id =
+      'req-' +
+      Date.now() +
+      '-' +
+      (++requestSeq);
+
+    const timeout = Number(
+      config().REQUEST_TIMEOUT_MS ||
+      20000
+    );
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
 
         reject(new Error(
-          'Timeout menghubungi Google Apps Script. Periksa deployment backend.'
+          'Timeout menghubungi backend Apps Script.'
         ));
       }, timeout);
 
@@ -180,33 +175,87 @@ const KtdBridge = (() => {
           name,
           payload
         }, '*');
-      } catch (e) {
+      } catch (err) {
         clearTimeout(timer);
         pending.delete(id);
 
         reject(new Error(
           'Gagal mengirim request ke backend: ' +
-          (e?.message || String(e))
+          (err?.message || String(err))
         ));
       }
     });
   }
 
+  async function health() {
+    return call('healthCheck');
+  }
+
   function status() {
     return {
       ready,
-      hasIframe: !!iframe,
+      iframeMounted: !!iframe,
       backendUrl: (() => {
         try { return backendUrl(); }
-        catch (e) { return ''; }
+        catch (_) { return ''; }
       })()
     };
   }
+
+  window.addEventListener('message', event => {
+    if (!iframe || event.source !== iframe.contentWindow) {
+      return;
+    }
+
+    const msg = event.data || {};
+
+    if (!msg.ktdBridge) {
+      return;
+    }
+
+    if (msg.type === 'ready') {
+      ready = true;
+
+      if (readyResolve) {
+        readyResolve(true);
+      }
+
+      return;
+    }
+
+    if (
+      msg.type === 'response' &&
+      msg.id &&
+      pending.has(msg.id)
+    ) {
+      const job = pending.get(msg.id);
+      pending.delete(msg.id);
+      clearTimeout(job.timer);
+
+      if (msg.ok) {
+        job.resolve(msg.result);
+      } else {
+        job.reject(
+          new Error(
+            msg.error ||
+            'Backend mengembalikan error.'
+          )
+        );
+      }
+    }
+  });
+
+  window.addEventListener('online', () => {
+    setTimeout(() => {
+      try { reload(); } catch (_) {}
+    }, 250);
+  });
 
   return {
     init,
     reload,
     call,
+    health,
     status
   };
 })();
