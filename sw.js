@@ -1,4 +1,5 @@
-const CACHE_NAME = 'ktd-sales-pwa-v1';
+const CACHE_NAME = 'ktd-sales-2026.09.24.1651';
+
 const APP_SHELL = [
   './',
   './index.html',
@@ -23,45 +24,64 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', event => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
+  const request = event.request;
 
-  const url = new URL(req.url);
-
-  // Never cache Google Apps Script backend/bridge traffic.
-  if (url.hostname.includes('script.google.com') || url.hostname.includes('googleusercontent.com')) {
+  if (request.method !== 'GET') {
     return;
   }
 
-  if (req.mode === 'navigate') {
+  const url = new URL(request.url);
+
+  if (
+    url.hostname.includes('script.google.com') ||
+    url.hostname.includes('googleusercontent.com')
+  ) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then(resp => {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-          return resp;
+      fetch(request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put('./index.html', copy))
+            .catch(() => {});
+          return response;
         })
         .catch(() => caches.match('./index.html'))
     );
+
     return;
   }
 
   event.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(resp => {
-        if (resp && resp.ok && resp.type === 'basic') {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+    fetch(request)
+      .then(response => {
+        if (
+          response &&
+          response.ok &&
+          response.type === 'basic'
+        ) {
+          const copy = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put(request, copy))
+            .catch(() => {});
         }
-        return resp;
-      });
-    })
+
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
