@@ -55,6 +55,12 @@ async function init(){
     }
   }else{
     showLogin();
+
+    // Ambil venue resmi dari backend ketika online.
+    // Jangan hanya mengandalkan fallback/cache lokal.
+    if(navigator.onLine){
+      defer(loadVenues,150);
+    }
   }
 
   setInterval(()=>{
@@ -90,34 +96,81 @@ async function loadVenues(){
 }
 
 function renderVenueSelect(){
-  const staticVenues=[
-    {key:'STATIC|Cooltura Semarang|Main Booth',lokasi:'Main Booth',event:'Cooltura Semarang'},
-    {key:'STATIC|Cooltura Semarang|Drink Stall 1',lokasi:'Drink Stall 1',event:'Cooltura Semarang'},
-    {key:'STATIC|Cooltura Semarang|Drink Stall 2',lokasi:'Drink Stall 2',event:'Cooltura Semarang'},
-    {key:'STATIC|Cooltura Semarang|Drink Stall 3',lokasi:'Drink Stall 3',event:'Cooltura Semarang'},
-    {key:'STATIC|Cooltura Semarang|Drink Stall 4',lokasi:'Drink Stall 4',event:'Cooltura Semarang'}
+  // Venue dari backend adalah sumber utama.
+  // Fallback hanya dipakai saat cache/backend belum tersedia.
+  const fallbackVenues=[
+    {key:'STATIC|Synchronize Festival|Main Booth',lokasi:'Main Booth',event:'Synchronize Festival',map:''},
+    {key:'STATIC|Synchronize Festival|Drink Stall 1',lokasi:'Drink Stall 1',event:'Synchronize Festival',map:''},
+    {key:'STATIC|Synchronize Festival|Drink Stall 2',lokasi:'Drink Stall 2',event:'Synchronize Festival',map:''},
+    {key:'STATIC|Synchronize Festival|Drink Stall 3',lokasi:'Drink Stall 3',event:'Synchronize Festival',map:''},
+    {key:'STATIC|Synchronize Festival|Drink Stall 4',lokasi:'Drink Stall 4',event:'Synchronize Festival',map:''}
   ];
-  const map=new Map(staticVenues.map(v=>[v.key,v]));
-  (venues||[]).forEach(v=>map.set(v.key,v));
+
+  const source=(Array.isArray(venues) && venues.length) ? venues : fallbackVenues;
+  const map=new Map();
+
+  source.forEach(v=>{
+    if(v && v.key && v.lokasi){
+      map.set(String(v.key),v);
+    }
+  });
+
   const all=[...map.values()];
-  $('#venue').innerHTML='<option value="">Pilih lokasi venue</option>'+
-    all.map(v=>`<option value="${esc(v.key)}">${esc(v.lokasi)} — ${esc(v.event)}</option>`).join('');
+  const current=$('#venue').value;
+
+  $('#venue').innerHTML=
+    '<option value="">Pilih lokasi venue</option>'+
+    all.map(v=>`<option value="${esc(v.key)}">${esc(v.lokasi)} — ${esc(v.event||'')}</option>`).join('');
+
+  if(current && map.has(current)){
+    $('#venue').value=current;
+  }
 }
 
 async function login(){
-  if(!navigator.onLine){showMsg('#loginMsg','Login pertama kali memerlukan internet.');return;}
+  if(!navigator.onLine){
+    showMsg('#loginMsg','Login pertama kali memerlukan internet.');
+    return;
+  }
+
+  const username=$('#username').value.trim();
+  const password=$('#password').value;
+  const venueKey=$('#venue').value;
+
+  if(!username || !password || !venueKey){
+    showMsg('#loginMsg','Lengkapi username, password, dan lokasi venue.');
+    return;
+  }
+
+  showMsg('#loginMsg','');
   setButton('#loginBtn',true,'MEMERIKSA...');
+
   try{
+    // Pastikan bridge Apps Script benar-benar siap.
+    await KtdBridge.init(15000);
+
     const res=await server('login',{
-      username:$('#username').value,password:$('#password').value,venueKey:$('#venue').value
+      username,
+      password,
+      venueKey
     });
+
+    if(!res || !res.token || !res.session){
+      throw new Error('Respons login backend tidak lengkap.');
+    }
+
     await metaSet(TOKEN_KEY,res.token);
     await metaSet(CACHE_KEY,res);
     await metaSet('venueCache',res.venues||[]);
+
     $('#password').value='';
     enterApp(res.token,res,false);
-  }catch(e){showMsg('#loginMsg',e.message||String(e))}
-  finally{setButton('#loginBtn',false,'MASUK')}
+  }catch(e){
+    const detail=e && e.message ? e.message : String(e);
+    showMsg('#loginMsg',detail);
+  }finally{
+    setButton('#loginBtn',false,'MASUK');
+  }
 }
 
 function enterApp(token,res,offlineRestore){
