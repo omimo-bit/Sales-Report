@@ -201,7 +201,7 @@ async function checkBackend() {
     }
 
     setBackendStatus(
-      'Backend siap • Google Sheets terhubung',
+      'Backend siap terhubung',
       true
     );
 
