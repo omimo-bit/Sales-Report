@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktd-sales-2026.09.24.1651';
+const CACHE_NAME = 'ktd-sales-bridge-v3-2026.09.24.1738-BRIDGE-V3';
 
 const APP_SHELL = [
   './',
@@ -36,12 +36,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
 
-  if (request.method !== 'GET') {
-    return;
-  }
+  if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
+  // Backend tidak pernah dicache.
   if (
     url.hostname.includes('script.google.com') ||
     url.hostname.includes('googleusercontent.com')
@@ -49,6 +48,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Navigasi: online dulu, fallback ke cached index.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -61,25 +61,20 @@ self.addEventListener('fetch', event => {
         })
         .catch(() => caches.match('./index.html'))
     );
-
     return;
   }
 
+  // Asset aplikasi: network-first supaya update GitHub cepat masuk,
+  // fallback cache untuk mode offline.
   event.respondWith(
     fetch(request)
       .then(response => {
-        if (
-          response &&
-          response.ok &&
-          response.type === 'basic'
-        ) {
+        if (response && response.ok && response.type === 'basic') {
           const copy = response.clone();
-
           caches.open(CACHE_NAME)
             .then(cache => cache.put(request, copy))
             .catch(() => {});
         }
-
         return response;
       })
       .catch(() => caches.match(request))
