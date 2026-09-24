@@ -201,7 +201,7 @@ async function checkBackend() {
     }
 
     setBackendStatus(
-      'Backend siap terhubung',
+      'Kita telah terhubung',
       true
     );
 
