@@ -1,167 +1,399 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="id">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#FFD900">
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#FFD400">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icon-192.png">
-  <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./styles.css">
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  >
+
+  <title>Kratingdaeng Sales Input</title>
+
+  <link
+    rel="manifest"
+    href="./manifest.webmanifest"
+  >
+  <link
+    rel="apple-touch-icon"
+    href="./icon-192.png"
+  >
+  <link
+    rel="icon"
+    href="./icon-192.png"
+  >
+  <link
+    rel="stylesheet"
+    href="./styles.css"
+  >
 </head>
+
 <body>
-  <div id="offlineBar" class="offline-bar hidden">OFFLINE • INPUT TETAP TERSIMPAN DI HP</div>
+  <div
+    id="offlineBar"
+    class="offline-bar hidden"
+  >
+    OFFLINE • transaksi tetap tersimpan di perangkat
+  </div>
 
   <main class="app-shell">
-    <section id="loginView" class="login-card">
-      <div class="brand brand-centered">
-        <div class="brand-mark">
-          <img src="./logo.webp"
-               width="90" height="90" decoding="async" fetchpriority="high"
-               alt="Kratingdaeng"
-               onerror="this.style.display='none';this.parentElement.classList.add('logo-fallback')">
-        </div>
-        <div class="brand-copy">
-          <h1>Sales Input</h1>
-          <p>Kratingdaeng Music Festival</p>
-        </div>
+
+    <!-- LOGIN -->
+    <section
+      id="loginView"
+      class="view login-view"
+    >
+      <div class="brand-card">
+        <img
+          class="brand-logo"
+          src="./logo.webp"
+          alt="Kratingdaeng"
+        >
+
+        <h1>Sales Input</h1>
+        <p>Kratingdaeng Music Festival</p>
       </div>
 
-      <label>USERNAME</label>
-      <input id="username" autocomplete="username" placeholder="Masukkan username">
+      <div class="panel">
+        <label>
+          Username
+          <input
+            id="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Masukkan username"
+          >
+        </label>
 
-      <label>PASSWORD</label>
-      <input id="password" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Masukkan password">
+        <label>
+          Password
+          <input
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Masukkan password"
+          >
+        </label>
 
-      <label>LOKASI VENUE</label>
-      <select id="venue">
-        <option value="">Pilih lokasi venue</option>
-        <option value="STATIC|Cooltura Semarang|Main Booth">Main Booth — Cooltura Semarang</option>
-        <option value="STATIC|Cooltura Semarang|Drink Stall 1">Drink Stall 1 — Cooltura Semarang</option>
-        <option value="STATIC|Cooltura Semarang|Drink Stall 2">Drink Stall 2 — Cooltura Semarang</option>
-        <option value="STATIC|Cooltura Semarang|Drink Stall 3">Drink Stall 3 — Cooltura Semarang</option>
-        <option value="STATIC|Cooltura Semarang|Drink Stall 4">Drink Stall 4 — Cooltura Semarang</option>
-      </select>
+        <label>
+          Lokasi Venue
+          <select id="venue"></select>
+        </label>
 
-      <button id="loginBtn" class="btn-primary">MASUK</button>
-      <div id="loginMsg" class="message error"></div>
+        <button
+          id="loginBtn"
+          class="primary"
+          type="button"
+        >
+          MASUK
+        </button>
+
+        <button
+          id="testBackendBtn"
+          class="secondary"
+          type="button"
+        >
+          TES KONEKSI
+        </button>
+
+        <div
+          id="backendStatus"
+          class="status-text"
+        >
+          Memuat aplikasi...
+        </div>
+
+        <div
+          id="loginMsg"
+          class="message"
+        ></div>
+      </div>
     </section>
 
-    <section id="salesView" class="hidden">
-      <div class="app-brandline">
-        <div class="mini-logo">
-          <img src="./logo.webp"
-               width="44" height="44" decoding="async" loading="lazy"
-               alt="Kratingdaeng"
-               onerror="this.style.display='none'">
-        </div>
-        <div class="app-brand-copy">
-          <strong>Sales Input</strong>
-          <span>Kratingdaeng Music Festival</span>
-        </div>
-      </div>
 
-      <header class="header">
-        <div>
-          <span class="eyebrow">LOGIN SEBAGAI</span>
-          <h2 id="userName">User</h2>
-          <p id="venueLabel"></p>
+    <!-- SALES -->
+    <section
+      id="salesView"
+      class="view hidden"
+    >
+      <header class="top-card">
+        <div class="top-brand">
+          <img
+            src="./logo.webp"
+            alt="Kratingdaeng"
+          >
+
+          <div>
+            <strong>
+              Sales Input Kratingdaeng Music Festival
+            </strong>
+
+            <small id="venueLabel">
+              -
+            </small>
+          </div>
         </div>
-        <button id="logoutBtn" class="btn-text">Logout</button>
+
+        <div class="user-box">
+          <span>LOGIN SEBAGAI</span>
+          <strong id="userName">
+            User
+          </strong>
+
+          <button
+            id="logoutBtn"
+            class="link-btn"
+            type="button"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
-      <div class="status">
-        <span id="netStatus" class="chip">ONLINE</span>
-        <span id="pendingChip" class="chip">0 PENDING</span>
+      <div class="network-row">
+        <span
+          id="netStatus"
+          class="pill"
+        >
+          ONLINE
+        </span>
+
+        <span class="pill">
+          <b id="pendingTop">0</b>
+          PENDING
+        </span>
       </div>
 
+
       <section class="panel">
-        <div class="section-title">Pilih Multi Item</div>
-        <div class="hint product-hint">Tekan + pada beberapa produk. Semua item akan tersimpan dalam satu pesanan.</div>
-        <div id="productTabs" class="category-tabs"></div>
-        <div id="productList" class="product-list"></div>
-      </section>
-
-      <section id="cartPanel" class="panel compact">
-        <div class="row between center">
+        <div class="section-heading">
           <div>
-            <div class="section-title no-margin">Keranjang</div>
-            <div id="cartInfo" class="hint">Belum ada item</div>
+            <h2>Pilih Multi Item</h2>
+            <p>
+              Tekan + pada beberapa produk.
+              Semua item tersimpan dalam satu pesanan.
+            </p>
           </div>
-          <button id="clearCartBtn" class="btn-small">Kosongkan</button>
         </div>
-        <div id="cartList" class="cart-list"></div>
+
+        <div
+          id="productTabs"
+          class="tabs"
+        ></div>
+
+        <div
+          id="productList"
+          class="product-list"
+        ></div>
       </section>
 
-      <section class="panel compact">
-        <div class="section-title">Pembayaran</div>
+
+      <section class="panel">
+        <div class="section-heading row-between">
+          <div>
+            <h2>Keranjang</h2>
+            <p id="cartInfo">
+              Belum ada item
+            </p>
+          </div>
+
+          <button
+            id="clearCartBtn"
+            class="mini-btn"
+            type="button"
+          >
+            Kosongkan
+          </button>
+        </div>
+
+        <div
+          id="cartList"
+          class="cart-list"
+        ></div>
+
+        <h3>Pembayaran</h3>
+
         <div class="payment-grid">
-          <button class="payment active" data-value="Cash">CASH</button>
-          <button class="payment" data-value="QRIS">QRIS</button>
+          <button
+            class="payment active"
+            data-value="Cash"
+            type="button"
+          >
+            CASH
+          </button>
+
+          <button
+            class="payment"
+            data-value="QRIS"
+            type="button"
+          >
+            QRIS
+          </button>
         </div>
-      </section>
 
-      <section class="panel compact">
-        <label class="top-label">KETERANGAN <span>(OPSIONAL)</span></label>
-        <input id="note" maxlength="250" placeholder="Catatan transaksi">
-      </section>
+        <label>
+          Keterangan
+          <input
+            id="note"
+            type="text"
+            maxlength="250"
+            placeholder="Catatan transaksi (opsional)"
+          >
+        </label>
 
-      <section class="checkout">
-        <div>
-          <span>TOTAL PESANAN</span>
-          <strong id="total">Rp0</strong>
-          <small id="totalQty">0 item</small>
-        </div>
-        <button id="saveBtn" class="btn-primary save">SIMPAN</button>
-      </section>
-
-      <div id="saveMsg" class="message success"></div>
-
-      <section class="summary-panel">
-        <div><span>Pending Sync Saya</span><strong id="pendingCount">0</strong>
-        <div class="offline-metrics">
-          <div><span>Offline</span><strong id="offlineDuration">0m</strong></div>
-          <div><span>Last Sync</span><strong id="lastSyncAt">Belum pernah</strong></div>
-        </div>
-</div>
-        <div><span>Offline Hari Ini</span><strong id="todayCount">0</strong></div>
-        <button id="syncBtn" class="btn-dark">SYNC SEKARANG</button>
-      </section>
-
-      <section class="sales-summary panel">
-        <div class="summary-head">
+        <div class="total-box">
           <div>
-            <div class="section-title no-margin">Hasil Penjualan Saya</div>
-            <div class="hint">Report Sales + data offline milik akun ini</div>
+            <span>TOTAL PESANAN</span>
+            <strong id="total">
+              Rp0
+            </strong>
           </div>
-          <button id="refreshSummaryBtn" class="btn-small">Refresh</button>
+
+          <b id="totalQty">
+            0 qty
+          </b>
         </div>
 
-        <div class="grand-totals">
-          <div><span>Total Qty</span><strong id="myTotalQty">0</strong></div>
-          <div><span>Total Value</span><strong id="myTotalValue">Rp0</strong></div>
+        <button
+          id="saveBtn"
+          class="primary"
+          type="button"
+        >
+          SIMPAN
+        </button>
+
+        <div
+          id="saveMsg"
+          class="message"
+        ></div>
+      </section>
+
+
+      <section class="panel">
+        <div class="section-heading row-between">
+          <div>
+            <h2>Sinkronisasi</h2>
+            <p>
+              Data offline otomatis dikirim ketika internet kembali.
+            </p>
+          </div>
+
+          <button
+            id="syncBtn"
+            class="mini-btn"
+            type="button"
+          >
+            SYNC SEKARANG
+          </button>
         </div>
 
-        <div class="summary-block">
-          <div class="summary-subtitle">PER ITEM</div>
-          <div id="itemSummary" class="summary-table empty-state">Belum ada penjualan.</div>
+        <div class="metric-grid">
+          <div>
+            <span>Pending Sync Saya</span>
+            <strong id="pendingCount">
+              0
+            </strong>
+          </div>
+
+          <div>
+            <span>Offline</span>
+            <strong id="offlineDuration">
+              0m
+            </strong>
+          </div>
+
+          <div>
+            <span>Last Sync</span>
+            <strong id="lastSync">
+              Belum pernah
+            </strong>
+          </div>
+
+          <div>
+            <span>Offline Hari Ini</span>
+            <strong id="offlineToday">
+              0
+            </strong>
+          </div>
+        </div>
+      </section>
+
+
+      <section class="panel">
+        <div class="section-heading row-between">
+          <div>
+            <h2>Hasil Penjualan Saya</h2>
+            <p>
+              Report Sales + data offline akun ini.
+            </p>
+          </div>
+
+          <button
+            id="refreshSummaryBtn"
+            class="mini-btn"
+            type="button"
+          >
+            Refresh
+          </button>
         </div>
 
-        <div class="summary-block">
-          <div class="summary-subtitle">PER LOKASI</div>
-          <div id="locationSummary" class="summary-table empty-state">Belum ada penjualan.</div>
+        <div class="summary-total">
+          <div>
+            <span>Total Qty</span>
+            <strong id="myTotalQty">
+              0
+            </strong>
+          </div>
+
+          <div>
+            <span>Total Value</span>
+            <strong id="myTotalValue">
+              Rp0
+            </strong>
+          </div>
+        </div>
+
+        <h3>Per Item</h3>
+
+        <div
+          id="itemSummary"
+          class="summary-list empty-state"
+        >
+          Belum ada penjualan.
+        </div>
+
+        <h3>Per Lokasi</h3>
+
+        <div
+          id="locationSummary"
+          class="summary-list empty-state"
+        >
+          Belum ada penjualan.
         </div>
       </section>
     </section>
+
   </main>
 
   <script src="./config.js"></script>
   <script src="./bridge-client.js"></script>
   <script src="./app.js"></script>
+
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+      window.addEventListener('load', async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('./sw.js');
+          reg.update().catch(() => {});
+        } catch (e) {
+          console.warn('Service worker gagal:', e);
+        }
+      });
     }
   </script>
 </body>
