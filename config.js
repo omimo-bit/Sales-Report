@@ -1,8 +1,8 @@
 window.KTD_CONFIG = {
-  // WAJIB: ganti dengan URL /exec deployment Apps Script terbaru.
-  // Contoh: https://script.google.com/macros/s/AKfy.../exec
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbyfIsBVlmzy1Mb79pFmVSMrU14sia87hKhJe8QnwbPdI6xWsKIEC1VD5kDlOzoeVAA/exec',
-
-  // Timeout request online ke Apps Script.
-  REQUEST_TIMEOUT_MS: 30000
+  APP_VERSION: '2026.09.24.1651',
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzuK6ZZl9jbH-l1Xoiurdrn9rsAEO8mmS-EguFkJEcCClgjvkTgc9kVQgpbWXuFYEFE/exec',
+  REQUEST_TIMEOUT_MS: 20000,
+  BRIDGE_READY_TIMEOUT_MS: 12000,
+  AUTO_SYNC_MS: 30000,
+  SYNC_BATCH_SIZE: 120
 };
