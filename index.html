@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#FFD900">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Sales Input Kratingdaeng</title>
+  <title>Kratingdaeng Event Operations</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon-192.png">
   <link rel="apple-touch-icon" href="./icon-192.png">
@@ -20,8 +20,8 @@
       <div class="brand-centered">
         <div class="brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>
         <div>
-          <h1>Sales Input</h1>
-          <p>Kratingdaeng Music Festival</p>
+          <h1>Event Operations</h1>
+          <p>Sales & Logistic • Kratingdaeng Music Festival</p>
         </div>
       </div>
 
@@ -136,6 +136,114 @@
         <div id="photoVaultList" class="vault-list"></div>
       </section>
     </section>
+
+    <section id="logisticsView" class="hidden">
+      <div class="app-brandline">
+        <img src="./logo.webp" alt="DOTSIXTWOO">
+        <div><strong>Logistic Control</strong><span>Kratingdaeng Music Festival</span></div>
+      </div>
+
+      <header class="header">
+        <div>
+          <span class="eyebrow">LOGIN SEBAGAI</span>
+          <h2 id="logisticUserName">User</h2>
+          <p id="logisticVenueLabel"></p>
+        </div>
+        <button id="logisticLogoutBtn" class="btn-text" type="button">Logout</button>
+      </header>
+
+      <div class="status-row">
+        <span id="logisticNetStatus" class="chip">ONLINE</span>
+        <span id="logisticRoleChip" class="chip">LOGISTIC</span>
+        <span id="logisticPendingChip" class="chip">0 PENDING</span>
+      </div>
+
+      <section class="card panel compact">
+        <div class="section-title">Aktivitas Logistic</div>
+        <div class="logistic-form-grid">
+          <div>
+            <label class="top-label">JENIS AKTIVITAS</label>
+            <select id="logisticType">
+              <option value="IN">STOCK MASUK (+)</option>
+              <option value="OUT">STOCK KELUAR / TERPAKAI (-)</option>
+              <option value="RETURN_IN">RETUR MASUK (+)</option>
+              <option value="DAMAGE">RUSAK / WASTE (-)</option>
+            </select>
+          </div>
+          <div>
+            <label class="top-label">LOKASI STOCK</label>
+            <select id="logisticLocation"></select>
+            <div id="logisticLocationHint" class="hint"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <div class="section-title">Pilih Produk & Qty</div>
+        <div class="hint product-hint">Input dapat multi-item. Harga tidak ditampilkan karena modul ini khusus pergerakan stock.</div>
+        <div id="logisticProductTabs" class="category-tabs"></div>
+        <div id="logisticProductList" class="product-list"></div>
+      </section>
+
+      <section class="card panel compact">
+        <div class="row between center">
+          <div>
+            <div class="section-title no-margin">Daftar Item Logistic</div>
+            <div id="logisticCartInfo" class="hint">Belum ada item</div>
+          </div>
+          <button id="logisticClearBtn" class="btn-small" type="button">Kosongkan</button>
+        </div>
+        <div id="logisticCartList" class="cart-list"></div>
+      </section>
+
+      <section class="card panel compact">
+        <label class="top-label">KETERANGAN <span>(OPSIONAL)</span></label>
+        <input id="logisticNote" maxlength="250" placeholder="Contoh: stock dari truck 1 / shift sore / waste pecah">
+      </section>
+
+      <section class="checkout logistic-checkout">
+        <div>
+          <span>TOTAL QTY MOVEMENT</span>
+          <strong id="logisticTotalQty">0</strong>
+          <small id="logisticTypeLabel">STOCK MASUK</small>
+        </div>
+        <button id="logisticSaveBtn" class="btn-primary save" type="button">SIMPAN</button>
+      </section>
+      <div id="logisticSaveMsg" class="message"></div>
+
+      <section class="card summary-panel">
+        <div class="metric-row"><span>Pending Logistic</span><strong id="logisticPendingCount">0</strong></div>
+        <div class="metric-row"><span>Error Sync</span><strong id="logisticErrorCount">0</strong></div>
+        <div class="metric-row"><span>Movement Hari Ini</span><strong id="logisticTodayCount">0</strong></div>
+        <div class="offline-metrics">
+          <div><span>Offline</span><strong id="logisticOfflineDuration">0m</strong></div>
+          <div><span>Last Sync</span><strong id="logisticLastSyncAt">Belum pernah</strong></div>
+        </div>
+        <button id="logisticSyncBtn" class="btn-dark" type="button">SYNC LOGISTIC SEKARANG</button>
+      </section>
+
+      <section class="card panel logistic-summary">
+        <div class="summary-head">
+          <div>
+            <div class="section-title no-margin">Stock Saat Ini</div>
+            <div id="logisticSummaryLocation" class="hint">Lokasi</div>
+          </div>
+          <button id="logisticRefreshBtn" class="btn-small" type="button">Refresh</button>
+        </div>
+        <div class="logistic-stock-banner">
+          <span>Total unit tersedia</span>
+          <strong id="logisticStockTotal">0</strong>
+        </div>
+        <div id="logisticStockList" class="summary-table empty-state">Belum ada pergerakan stock.</div>
+      </section>
+
+      <section class="card panel">
+        <div class="section-title">Movement Terakhir</div>
+        <div class="hint product-hint">Data server + movement lokal yang belum tersinkron.</div>
+        <div id="logisticRecentList" class="logistic-history empty-state">Belum ada movement.</div>
+      </section>
+    </section>
+
   </main>
 
   <script src="./config.js"></script>

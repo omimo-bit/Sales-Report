@@ -1,8 +1,9 @@
 const DB_NAME = 'ktd_sales_offline_v4';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_QUEUE = 'queue';
 const STORE_META = 'meta';
 const STORE_PHOTOS = 'photos';
+const STORE_LOGISTIC = 'logisticQueue';
 
 const TOKEN_KEY = 'authToken';
 const SESSION_CACHE_KEY = 'cachedSession';
@@ -30,6 +31,12 @@ let currentPhotoId = '';
 let currentPreviewUrl = '';
 let syncInProgress = false;
 let serverSummary = {totalQty:0,totalValue:0,byItem:[],byLocation:[]};
+let currentMode = 'login';
+let logisticCart = {};
+let logisticCategory = 'ALL';
+let logisticType = 'IN';
+let logisticLocation = '';
+let logisticServerSummary = {location:'',stockByItem:[],recent:[]};
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => Array.from(document.querySelectorAll(selector));
@@ -56,7 +63,7 @@ async function init() {
     updateNetworkState();
     const existing = await metaGet(OFFLINE_SINCE_KEY);
     if (!existing) await metaSet(OFFLINE_SINCE_KEY, new Date().toISOString());
-    refreshMySummary(false);
+    if (isLogisticRole()) refreshLogisticSummary(false); else refreshMySummary(false);
   });
 
   if (!navigator.onLine) {
@@ -118,6 +125,24 @@ function bindEvents() {
     const input = $('#qrisCameraInput');
     input.value = '';
     input.click();
+  });
+
+  $('#logisticLogoutBtn').addEventListener('click', logout);
+  $('#logisticSaveBtn').addEventListener('click', saveLogisticMovement);
+  $('#logisticSyncBtn').addEventListener('click', syncAll);
+  $('#logisticRefreshBtn').addEventListener('click', () => refreshLogisticSummary(true));
+  $('#logisticClearBtn').addEventListener('click', () => {
+    logisticCart = {};
+    renderLogisticProducts();
+    renderLogisticCart();
+  });
+  $('#logisticType').addEventListener('change', event => {
+    logisticType = event.target.value || 'IN';
+    renderLogisticCart();
+  });
+  $('#logisticLocation').addEventListener('change', async event => {
+    logisticLocation = event.target.value || session?.lokasi || '';
+    await refreshLogisticSummary(true);
   });
 }
 
@@ -219,10 +244,33 @@ function enterApp(result, offlineRestore) {
   products = result.products || [];
   venues = result.venues || venues;
   cart = {};
+  logisticCart = {};
   payment = 'Cash';
   selectedCategory = 'ALL';
+  logisticCategory = 'ALL';
+  logisticType = 'IN';
 
   $('#loginView').classList.add('hidden');
+  $('#salesView').classList.add('hidden');
+  $('#logisticsView').classList.add('hidden');
+
+  if (isLogisticRole()) {
+    currentMode = 'logistic';
+    $('#logisticsView').classList.remove('hidden');
+    $('#logisticUserName').textContent = session.namaUser || session.username;
+    $('#logisticVenueLabel').textContent = `${session.lokasi} • ${session.event}`;
+    $('#logisticRoleChip').textContent = normalizedRoleLabel();
+    logisticLocation = session.lokasi || '';
+    renderLogisticLocations();
+    renderLogisticCategories();
+    renderLogisticProducts();
+    renderLogisticCart();
+    updateMetrics();
+    refreshLogisticSummary(!offlineRestore && navigator.onLine);
+    return;
+  }
+
+  currentMode = 'sales';
   $('#salesView').classList.remove('hidden');
   $('#userName').textContent = session.namaUser || session.username;
   $('#venueLabel').textContent = `${session.lokasi} • ${session.event}`;
@@ -237,21 +285,51 @@ function enterApp(result, offlineRestore) {
   refreshMySummary(!offlineRestore && navigator.onLine);
 }
 
+function normalizedRole() {
+  return String(session?.role || '').trim().toLowerCase();
+}
+
+function isLogisticRole() {
+  const role = normalizedRole();
+  return role.includes('logistic') || role.includes('logistik') || role.includes('barmen') || role.includes('barman') || role.includes('bartender');
+}
+
+function isBarmenRole() {
+  const role = normalizedRole();
+  return role.includes('barmen') || role.includes('barman') || role.includes('bartender');
+}
+
+function normalizedRoleLabel() {
+  if (isBarmenRole()) return 'BARMEN';
+  if (isLogisticRole()) return 'LOGISTIC';
+  return String(session?.role || 'SPG').toUpperCase();
+}
+
 async function restoreOrSync() {
   const token = await metaGet(TOKEN_KEY);
   if (!token) return;
 
   try {
+    const oldMode = currentMode;
     const result = await KtdBridge.call('restoreSession', token);
     const cached = {token, ...result};
     await metaSet(SESSION_CACHE_KEY, cached);
     await metaSet(VENUE_CACHE_KEY, result.venues || venues);
 
-    if (!session) enterApp(cached, false);
-    else {
-      session = result.session;
-      products = result.products || products;
-      venues = result.venues || venues;
+    session = result.session;
+    products = result.products || products;
+    venues = result.venues || venues;
+    const newMode = isLogisticRole() ? 'logistic' : 'sales';
+
+    if (!session || oldMode !== newMode || currentMode === 'login') {
+      enterApp(cached, false);
+    } else if (newMode === 'logistic') {
+      renderLogisticLocations();
+      renderLogisticCategories();
+      renderLogisticProducts();
+      renderLogisticCart();
+      await refreshLogisticSummary(false);
+    } else {
       renderCategories();
       renderProducts();
       renderCart();
@@ -263,16 +341,20 @@ async function restoreOrSync() {
       await metaDel(TOKEN_KEY);
       await metaDel(SESSION_CACHE_KEY);
       session = null;
+      currentMode = 'login';
       showLogin();
     }
   }
 }
 
 async function logout() {
-  const pendingTx = session ? await queueCountForUser(session.username) : 0;
-  const pendingPhotos = session ? await photoPendingCountForUser(session.username) : 0;
-  if (pendingTx || pendingPhotos) {
-    const ok = confirm(`Masih ada ${pendingTx} transaksi dan ${pendingPhotos} foto menunggu sync. Logout? Data lokal tetap tersimpan di perangkat.`);
+  const username = session?.username || '';
+  const pendingTx = username ? await queueCountForUser(username) : 0;
+  const pendingPhotos = username ? await photoPendingCountForUser(username) : 0;
+  const pendingLogistic = username ? await logisticPendingCountForUser(username) : 0;
+
+  if (pendingTx || pendingPhotos || pendingLogistic) {
+    const ok = confirm(`Masih ada ${pendingTx} transaksi sales, ${pendingPhotos} foto, dan ${pendingLogistic} movement logistic menunggu sync. Logout? Data lokal tetap tersimpan di perangkat.`);
     if (!ok) return;
   }
 
@@ -281,15 +363,20 @@ async function logout() {
   session = null;
   products = [];
   cart = {};
+  logisticCart = {};
+  currentMode = 'login';
   currentPhotoId = '';
   resetQrisPreview();
   $('#salesView').classList.add('hidden');
+  $('#logisticsView').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
   renderVenueSelect();
 }
 
 function showLogin() {
+  currentMode = 'login';
   $('#salesView').classList.add('hidden');
+  $('#logisticsView').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
   metaGet(VENUE_CACHE_KEY).then(v => {
     venues = Array.isArray(v) && v.length ? v : STATIC_VENUES.slice();
@@ -596,18 +683,25 @@ async function syncAll() {
   updateNetworkState(true);
 
   try {
-    await syncQrisPhotos();
-    await syncQueue();
-    await metaSet(LAST_SYNC_KEY, new Date().toISOString());
-    await refreshMySummary(true);
+    if (isLogisticRole()) {
+      await syncLogisticQueue();
+      await metaSet(LAST_SYNC_KEY, new Date().toISOString());
+      await refreshLogisticSummary(true);
+    } else {
+      await syncQrisPhotos();
+      await syncQueue();
+      await metaSet(LAST_SYNC_KEY, new Date().toISOString());
+      await refreshMySummary(true);
+    }
   } catch (err) {
     console.warn('Sync tertunda:', err);
-    showMsg('#saveMsg', 'Sebagian sync tertunda. Data lokal tetap aman.', true);
+    if (isLogisticRole()) showMsg('#logisticSaveMsg', 'Sebagian sync logistic tertunda. Data lokal tetap aman.', true);
+    else showMsg('#saveMsg', 'Sebagian sync tertunda. Data lokal tetap aman.', true);
   } finally {
     syncInProgress = false;
     updateNetworkState(false);
     await updateMetrics();
-    await renderPhotoVault();
+    if (!isLogisticRole()) await renderPhotoVault();
   }
 }
 
@@ -727,7 +821,7 @@ async function syncQueue() {
 }
 
 async function refreshMySummary(forceNetwork = false) {
-  if (!session) return;
+  if (!session || isLogisticRole()) return;
   const cacheKey = 'summary:' + String(session.username || '').toLowerCase();
   serverSummary = await metaGet(cacheKey) || serverSummary;
   const local = await getOfflineSummaryForUser(session.username);
@@ -874,8 +968,325 @@ async function savePhotoToDevice(record) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+
+/* =========================================================
+   LOGISTIC / BARMEN MODULE
+   ========================================================= */
+const LOGISTIC_TYPE_META = {
+  IN: {label:'STOCK MASUK', sign:1},
+  OUT: {label:'STOCK KELUAR / TERPAKAI', sign:-1},
+  RETURN_IN: {label:'RETUR MASUK', sign:1},
+  DAMAGE: {label:'RUSAK / WASTE', sign:-1}
+};
+
+function renderLogisticLocations() {
+  const select = $('#logisticLocation');
+  const hint = $('#logisticLocationHint');
+  const all = Array.from(new Map((venues || STATIC_VENUES).map(v => [v.lokasi, v])).values());
+  select.innerHTML = all.map(v => `<option value="${esc(v.lokasi)}">${esc(v.lokasi)}</option>`).join('');
+
+  if (!logisticLocation) logisticLocation = session?.lokasi || all[0]?.lokasi || '';
+  select.value = logisticLocation;
+
+  if (isBarmenRole()) {
+    logisticLocation = session?.lokasi || logisticLocation;
+    select.value = logisticLocation;
+    select.disabled = true;
+    select.classList.add('logistic-location-locked');
+    hint.textContent = 'Barmen hanya dapat input stock untuk lokasi login sendiri.';
+  } else {
+    select.disabled = false;
+    select.classList.remove('logistic-location-locked');
+    hint.textContent = 'Role Logistic dapat memilih lokasi stock yang dikelola.';
+  }
+}
+
+function renderLogisticCategories() {
+  const cats = ['ALL', ...new Set(products.map(p => p.subKategori || 'LAINNYA'))];
+  $('#logisticProductTabs').innerHTML = cats.map(cat =>
+    `<button class="category-tab ${cat === logisticCategory ? 'active' : ''}" data-log-cat="${esc(cat)}">${esc(cat === 'ALL' ? 'SEMUA' : cat)}</button>`
+  ).join('');
+
+  $$('[data-log-cat]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      logisticCategory = btn.dataset.logCat;
+      renderLogisticCategories();
+      renderLogisticProducts();
+    });
+  });
+}
+
+function renderLogisticProducts() {
+  const filtered = products.filter(p => logisticCategory === 'ALL' || String(p.subKategori) === logisticCategory);
+  $('#logisticProductList').innerHTML = filtered.map(p => {
+    const qty = Number(logisticCart[p.kodeProduk] || 0);
+    return `<div class="product-card ${qty ? 'in-cart' : ''}">
+      <div><b>${esc(p.namaProduk)}</b><span class="price">${esc(p.kodeProduk)} • ${esc(p.satuan)}</span></div>
+      <div class="product-controls">
+        <button type="button" data-log-action="minus" data-code="${esc(p.kodeProduk)}">−</button>
+        <strong>${qty}</strong>
+        <button type="button" class="plus" data-log-action="plus" data-code="${esc(p.kodeProduk)}">+</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('[data-log-action]').forEach(btn => {
+    btn.addEventListener('click', () => changeLogisticCart(btn.dataset.code, btn.dataset.logAction === 'plus' ? 1 : -1));
+  });
+}
+
+function changeLogisticCart(code, delta) {
+  const next = Math.max(0, Math.min(9999, Number(logisticCart[code] || 0) + delta));
+  if (!next) delete logisticCart[code]; else logisticCart[code] = next;
+  renderLogisticProducts();
+  renderLogisticCart();
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+
+function logisticCartLines() {
+  return products.filter(p => Number(logisticCart[p.kodeProduk] || 0) > 0);
+}
+
+function renderLogisticCart() {
+  const lines = logisticCartLines();
+  const qty = lines.reduce((sum, p) => sum + Number(logisticCart[p.kodeProduk] || 0), 0);
+  const meta = LOGISTIC_TYPE_META[logisticType] || LOGISTIC_TYPE_META.IN;
+
+  $('#logisticCartInfo').textContent = lines.length ? `${lines.length} produk • ${qty} qty` : 'Belum ada item';
+  $('#logisticCartList').innerHTML = lines.length ? lines.map(p => {
+    const q = Number(logisticCart[p.kodeProduk] || 0);
+    return `<div class="cart-row"><div><b>${esc(p.namaProduk)}</b><span>${esc(p.kodeProduk)} • ${esc(p.satuan)}</span></div><strong>${q} qty</strong></div>`;
+  }).join('') : '<div class="cart-empty">Pilih satu atau beberapa produk di atas.</div>';
+
+  $('#logisticTotalQty').textContent = formatNumber(qty);
+  $('#logisticTypeLabel').textContent = `${meta.sign > 0 ? '+' : '−'} ${meta.label}`;
+}
+
+async function saveLogisticMovement() {
+  if (!session || !isLogisticRole()) return;
+  const lines = logisticCartLines();
+  if (!lines.length) {
+    showMsg('#logisticSaveMsg', 'Pilih minimal 1 produk.', true);
+    return;
+  }
+
+  const location = isBarmenRole() ? session.lokasi : ($('#logisticLocation').value || session.lokasi);
+  if (!location) {
+    showMsg('#logisticSaveMsg', 'Lokasi stock belum dipilih.', true);
+    return;
+  }
+
+  const type = $('#logisticType').value || 'IN';
+  if (!LOGISTIC_TYPE_META[type]) {
+    showMsg('#logisticSaveMsg', 'Jenis aktivitas logistic tidak valid.', true);
+    return;
+  }
+
+  const now = Date.now();
+  const batchId = 'LB-' + randomId8();
+  const deviceId = await metaGet(DEVICE_KEY);
+  const note = $('#logisticNote').value.trim();
+
+  const records = lines.map((p, index) => ({
+    idLogistic: 'LG-' + randomId8(),
+    batchId,
+    clientTimestamp: now + index,
+    event: session.event,
+    lokasi: location,
+    tipe: type,
+    kodeProduk: p.kodeProduk,
+    namaProduk: p.namaProduk,
+    qty: Number(logisticCart[p.kodeProduk] || 0),
+    satuan: p.satuan,
+    ownerUsername: String(session.username || '').toLowerCase(),
+    username: session.username,
+    namaUser: session.namaUser || session.username,
+    role: session.role || '',
+    keterangan: note,
+    deviceId,
+    createdAt: now + index,
+    syncStatus: 'PENDING',
+    lastSyncError: ''
+  }));
+
+  await logisticPutMany(records);
+  logisticCart = {};
+  $('#logisticNote').value = '';
+  renderLogisticProducts();
+  renderLogisticCart();
+  showMsg('#logisticSaveMsg', navigator.onLine ? 'Movement tersimpan lokal • sinkronisasi berjalan…' : 'Movement tersimpan OFFLINE di perangkat.', false);
+
+  await updateMetrics();
+  await refreshLogisticSummary(false);
+  if (navigator.vibrate) navigator.vibrate([25,30,25]);
+  if (navigator.onLine) setTimeout(syncAll, 250);
+}
+
+async function syncLogisticQueue() {
+  const token = await metaGet(TOKEN_KEY);
+  if (!token || !session || !isLogisticRole() || !navigator.onLine) return;
+  let totalSynced = 0;
+
+  while (navigator.onLine) {
+    const pending = await getLogisticPendingForUser(session.username, Number(window.KTD_CONFIG?.SYNC_BATCH_SIZE || 120));
+    if (!pending.length) break;
+
+    pending.forEach(row => {
+      row.syncStatus = 'SYNCING';
+      row.lastSyncAttempt = new Date().toISOString();
+    });
+    await logisticPutMany(pending);
+
+    let result;
+    try {
+      result = await KtdBridge.call('syncLogistics', {token, records:pending});
+    } catch (err) {
+      pending.forEach(row => {
+        row.syncStatus = 'PENDING';
+        row.lastSyncError = String(err?.message || err);
+      });
+      await logisticPutMany(pending);
+      throw err;
+    }
+
+    const accepted = new Set([...(result.accepted || []), ...(result.duplicates || [])]);
+    const rejectedMap = new Map((result.rejected || []).map(x => [x.idLogistic, x.error]));
+
+    for (const row of pending) {
+      if (accepted.has(row.idLogistic)) {
+        await logisticDelete(row.idLogistic);
+        totalSynced++;
+      } else if (rejectedMap.has(row.idLogistic)) {
+        row.syncStatus = 'ERROR';
+        row.lastSyncError = rejectedMap.get(row.idLogistic) || 'Ditolak server.';
+        await logisticPut(row);
+      } else {
+        row.syncStatus = 'PENDING';
+        row.lastSyncError = 'Server belum mengonfirmasi movement.';
+        await logisticPut(row);
+      }
+    }
+    await new Promise(r => setTimeout(r, 80));
+  }
+
+  if (totalSynced) showMsg('#logisticSaveMsg', `${formatNumber(totalSynced)} movement berhasil disinkronkan.`, false);
+}
+
+async function refreshLogisticSummary(forceNetwork = false) {
+  if (!session || !isLogisticRole()) return;
+  const location = isBarmenRole() ? session.lokasi : (logisticLocation || session.lokasi);
+  logisticLocation = location;
+  const cacheKey = `logisticSummary:${session.event}:${location}`;
+  logisticServerSummary = await metaGet(cacheKey) || logisticServerSummary;
+  const local = await getLocalLogisticSummary(location);
+  renderLogisticSummary(mergeLogisticSummary(logisticServerSummary, local));
+
+  if (forceNetwork && navigator.onLine) {
+    try {
+      const token = await metaGet(TOKEN_KEY);
+      logisticServerSummary = await KtdBridge.call('getLogisticSummary', {token, location});
+      await metaSet(cacheKey, logisticServerSummary);
+      const localNow = await getLocalLogisticSummary(location);
+      renderLogisticSummary(mergeLogisticSummary(logisticServerSummary, localNow));
+    } catch (err) {
+      console.warn('Logistic summary:', err);
+    }
+  }
+}
+
+async function getLocalLogisticSummary(location) {
+  const username = String(session?.username || '').toLowerCase();
+  const rows = (await logisticAll()).filter(r =>
+    String(r.ownerUsername || '').toLowerCase() === username &&
+    String(r.event || '') === String(session?.event || '') &&
+    String(r.lokasi || '') === String(location || '') &&
+    r.syncStatus !== 'ERROR'
+  );
+
+  const map = new Map();
+  for (const p of products) map.set(p.kodeProduk, {kodeProduk:p.kodeProduk,namaProduk:p.namaProduk,satuan:p.satuan,stock:0});
+  rows.forEach(r => {
+    if (!map.has(r.kodeProduk)) map.set(r.kodeProduk, {kodeProduk:r.kodeProduk,namaProduk:r.namaProduk,satuan:r.satuan,stock:0});
+    const meta = LOGISTIC_TYPE_META[r.tipe] || {sign:0};
+    map.get(r.kodeProduk).stock += Number(r.qty || 0) * meta.sign;
+  });
+
+  const recent = rows.slice().sort((a,b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).slice(0, 25).map(r => ({
+    idLogistic:r.idLogistic,
+    timestamp:r.createdAt,
+    tipe:r.tipe,
+    kodeProduk:r.kodeProduk,
+    namaProduk:r.namaProduk,
+    qty:Number(r.qty || 0),
+    qtySigned:Number(r.qty || 0) * (LOGISTIC_TYPE_META[r.tipe]?.sign || 0),
+    satuan:r.satuan,
+    namaUser:r.namaUser || r.username,
+    role:r.role || '',
+    keterangan:r.keterangan || '',
+    local:true
+  }));
+
+  return {location, stockByItem:[...map.values()], recent};
+}
+
+function mergeLogisticSummary(server, local) {
+  const stockMap = new Map();
+  products.forEach(p => stockMap.set(p.kodeProduk, {kodeProduk:p.kodeProduk,namaProduk:p.namaProduk,satuan:p.satuan,stock:0}));
+  for (const source of [server?.stockByItem || [], local?.stockByItem || []]) {
+    source.forEach(x => {
+      const key = x.kodeProduk || x.namaProduk;
+      if (!stockMap.has(key)) stockMap.set(key, {kodeProduk:x.kodeProduk,namaProduk:x.namaProduk,satuan:x.satuan,stock:0});
+      stockMap.get(key).stock += Number(x.stock || 0);
+    });
+  }
+
+  const recent = [...(local?.recent || []), ...(server?.recent || [])]
+    .sort((a,b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+    .slice(0, 30);
+
+  return {location:local?.location || server?.location || logisticLocation, stockByItem:[...stockMap.values()], recent};
+}
+
+function renderLogisticSummary(summary) {
+  const location = summary?.location || logisticLocation || session?.lokasi || '';
+  $('#logisticSummaryLocation').textContent = `${location} • ${session?.event || ''}`;
+  const stock = (summary?.stockByItem || []).sort((a,b) => String(a.namaProduk).localeCompare(String(b.namaProduk)));
+  const total = stock.reduce((sum, x) => sum + Number(x.stock || 0), 0);
+  $('#logisticStockTotal').textContent = formatNumber(total);
+  $('#logisticStockList').classList.toggle('empty-state', !stock.length);
+  $('#logisticStockList').innerHTML = stock.length ? stock.map(x => {
+    const cls = Number(x.stock) < 0 ? 'stock-negative' : (Number(x.stock) === 0 ? 'stock-zero' : '');
+    return `<div class="summary-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><small>${esc(x.kodeProduk || '')} • ${esc(x.satuan || '')}</small></div><div class="numbers"><strong class="${cls}">${formatNumber(x.stock)} qty</strong></div></div>`;
+  }).join('') : 'Belum ada pergerakan stock.';
+
+  const recent = summary?.recent || [];
+  $('#logisticRecentList').classList.toggle('empty-state', !recent.length);
+  $('#logisticRecentList').innerHTML = recent.length ? recent.map(x => {
+    const signed = Number(x.qtySigned || 0);
+    const label = LOGISTIC_TYPE_META[x.tipe]?.label || x.tipe || '';
+    return `<div class="logistic-history-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><span>${esc(label)} • ${esc(x.namaUser || '')}${x.local ? ' • LOCAL/PENDING' : ''}</span><small>${formatDateTime(x.timestamp)}${x.keterangan ? ' • ' + esc(x.keterangan) : ''}</small></div><div class="movement"><strong class="${signed >= 0 ? 'movement-positive' : 'movement-negative'}">${signed >= 0 ? '+' : ''}${formatNumber(signed)}</strong><span>${esc(x.satuan || '')}</span></div></div>`;
+  }).join('') : 'Belum ada movement.';
+}
+
 async function updateMetrics() {
   if (!session) return;
+
+  const off = await metaGet(OFFLINE_SINCE_KEY);
+  const last = await metaGet(LAST_SYNC_KEY);
+
+  if (isLogisticRole()) {
+    const pending = await logisticPendingCountForUser(session.username);
+    const errors = await logisticErrorCountForUser(session.username);
+    const today = await logisticTodayCountForUser(session.username);
+    $('#logisticPendingCount').textContent = String(pending);
+    $('#logisticPendingChip').textContent = `${pending} PENDING`;
+    $('#logisticErrorCount').textContent = String(errors);
+    $('#logisticTodayCount').textContent = String(today);
+    $('#logisticOfflineDuration').textContent = off ? formatDuration(Date.now() - new Date(off).getTime()) : '0m';
+    $('#logisticLastSyncAt').textContent = last ? formatDateTime(last) : 'Belum pernah';
+    return;
+  }
+
   const pending = await queueCountForUser(session.username);
   const errors = await queueErrorCountForUser(session.username);
   const photos = await photoPendingCountForUser(session.username);
@@ -883,17 +1294,16 @@ async function updateMetrics() {
   $('#pendingChip').textContent = `${pending} PENDING`;
   $('#photoPendingCount').textContent = String(photos);
   $('#errorCount').textContent = String(errors);
-
-  const off = await metaGet(OFFLINE_SINCE_KEY);
   $('#offlineDuration').textContent = off ? formatDuration(Date.now() - new Date(off).getTime()) : '0m';
-  const last = await metaGet(LAST_SYNC_KEY);
   $('#lastSyncAt').textContent = last ? formatDateTime(last) : 'Belum pernah';
 }
 
 function updateNetworkState(forceSyncing) {
   const online = navigator.onLine;
   $('#offlineBar').classList.toggle('hidden', online);
-  if ($('#netStatus')) $('#netStatus').textContent = forceSyncing || syncInProgress ? 'SYNCING...' : (online ? 'ONLINE' : 'OFFLINE');
+  const text = forceSyncing || syncInProgress ? 'SYNCING...' : (online ? 'ONLINE' : 'OFFLINE');
+  if ($('#netStatus')) $('#netStatus').textContent = text;
+  if ($('#logisticNetStatus')) $('#logisticNetStatus').textContent = text;
 }
 
 function openDb() {
@@ -921,6 +1331,16 @@ function openDb() {
       if (!p.indexNames.contains('ownerUsername')) p.createIndex('ownerUsername', 'ownerUsername', {unique:false});
       if (!p.indexNames.contains('orderId')) p.createIndex('orderId', 'orderId', {unique:false});
       if (!p.indexNames.contains('createdAt')) p.createIndex('createdAt', 'createdAt', {unique:false});
+
+      let l;
+      if (!idb.objectStoreNames.contains(STORE_LOGISTIC)) {
+        l = idb.createObjectStore(STORE_LOGISTIC, {keyPath:'idLogistic'});
+      } else {
+        l = event.target.transaction.objectStore(STORE_LOGISTIC);
+      }
+      if (!l.indexNames.contains('ownerUsername')) l.createIndex('ownerUsername', 'ownerUsername', {unique:false});
+      if (!l.indexNames.contains('createdAt')) l.createIndex('createdAt', 'createdAt', {unique:false});
+      if (!l.indexNames.contains('lokasi')) l.createIndex('lokasi', 'lokasi', {unique:false});
     };
     req.onsuccess = () => {
       const opened = req.result;
@@ -1001,6 +1421,58 @@ function photoGet(id) {
 
 function photoAll() {
   return reqP(store(STORE_PHOTOS).getAll()).then(rows => rows || []);
+}
+
+function logisticPut(row) {
+  const s = store(STORE_LOGISTIC, 'readwrite');
+  return reqP(idbPutCompat(s, row, row && row.idLogistic));
+}
+
+function logisticDelete(id) {
+  return reqP(store(STORE_LOGISTIC, 'readwrite').delete(id));
+}
+
+function logisticAll() {
+  return reqP(store(STORE_LOGISTIC).getAll()).then(rows => rows || []);
+}
+
+function logisticPutMany(rows) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_LOGISTIC, 'readwrite');
+    const s = tx.objectStore(STORE_LOGISTIC);
+    try {
+      rows.forEach(row => idbPutCompat(s, row, row && row.idLogistic));
+    } catch (err) {
+      try { tx.abort(); } catch (_) {}
+      reject(err);
+      return;
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('Gagal menyimpan queue logistic.'));
+    tx.onabort = () => reject(tx.error || new Error('Penyimpanan logistic dibatalkan.'));
+  });
+}
+
+async function getLogisticPendingForUser(username, limit) {
+  const u = String(username || '').toLowerCase();
+  return (await logisticAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus !== 'ERROR')
+    .sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0)).slice(0, limit);
+}
+
+async function logisticPendingCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  return (await logisticAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus !== 'ERROR').length;
+}
+
+async function logisticErrorCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  return (await logisticAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus === 'ERROR').length;
+}
+
+async function logisticTodayCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  const start = new Date(); start.setHours(0,0,0,0);
+  return (await logisticAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && Number(r.createdAt || 0) >= start.getTime()).length;
 }
 
 function queuePutMany(rows) {

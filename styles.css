@@ -23,3 +23,20 @@ input,select{width:100%;height:52px;border:1px solid #DCDCD4;background:#fff;bor
 .vault-panel{margin-top:0}.vault-count{font-size:11px;background:var(--yellow-soft);border-radius:999px;padding:7px 10px}.storage-status{font-size:10px;color:var(--muted);margin:10px 0}.vault-list{display:grid;gap:8px}.vault-row{border:1px solid var(--line);border-radius:12px;padding:10px}.vault-info b,.vault-info span,.vault-info small{display:block}.vault-info b{font-size:10px;word-break:break-word}.vault-info span{font-size:9px;color:var(--muted);margin-top:4px}.vault-info small{font-size:9px;color:var(--muted);margin-top:3px;word-break:break-word}.vault-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}.vault-actions button{height:36px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:9px;font-weight:900}
 button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-visibility:auto;contain-intrinsic-size:100px}
 @media(max-width:370px){.product-list{grid-template-columns:1fr}.app-shell{padding-left:9px;padding-right:9px}.checkout{grid-template-columns:1fr 125px}}
+
+
+/* =========================================================
+   ROLE-BASED LOGISTIC MODULE V3
+   ========================================================= */
+.logistic-form-grid{display:grid;grid-template-columns:1fr;gap:4px}
+.logistic-form-grid label{margin-top:5px}
+.logistic-checkout{margin-bottom:11px}
+.logistic-stock-banner{display:flex;align-items:center;justify-content:space-between;margin:14px 0 10px;padding:13px;background:var(--yellow-soft);border:1px solid #F1DE64;border-radius:14px}
+.logistic-stock-banner span{font-size:10px;color:var(--muted);font-weight:900}.logistic-stock-banner strong{font-size:23px}
+.logistic-history{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff}
+.logistic-history-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px;border-top:1px solid var(--line)}.logistic-history-row:first-child{border-top:0}
+.logistic-history-row b{display:block;font-size:11px}.logistic-history-row span,.logistic-history-row small{display:block;font-size:9px;color:var(--muted);margin-top:3px}.logistic-history-row .movement{text-align:right}.logistic-history-row .movement strong{display:block;font-size:12px}.movement-positive{color:var(--green)}.movement-negative{color:var(--danger)}
+.logistic-location-locked{background:#F1F1EC!important;color:#555}
+.stock-negative{color:var(--danger)!important}.stock-zero{color:var(--muted)!important}
+#logisticRoleChip{background:#FFF8C7;border-color:#F1DE64}
+@media(min-width:430px){.logistic-form-grid{grid-template-columns:1fr 1fr;gap:10px}}

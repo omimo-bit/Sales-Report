@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktd-sales-full-v2-idb-compat-20260925';
+const CACHE_NAME = 'ktd-sales-full-v3-role-logistic-20260925';
 const APP_SHELL = [
   './','./index.html','./styles.css','./config.js','./bridge-client.js','./app.js',
   './manifest.webmanifest','./logo.webp','./icon-192.png','./icon-512.png'
