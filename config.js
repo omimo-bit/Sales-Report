@@ -1,6 +1,6 @@
 window.KTD_CONFIG = {
   APP_VERSION: '2026.09.24.1738-BRIDGE-V3',
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbytguAuZVXsALpw5pLsBIsqPMD0Ywcjzb0XOMduhQM8Cxz1YwYaWl22_gPx69EJm1SQ/exec',
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbxigjDCcMEo7Zw64fyKmmKDCNaAx8cHeueTReAvyl3FMw9bLuLFYOZozZTjPczshhGT/exec',
   REQUEST_TIMEOUT_MS: 30000,
   BRIDGE_READY_TIMEOUT_MS: 12000,
   AUTO_SYNC_MS: 30000,
