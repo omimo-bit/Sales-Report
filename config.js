@@ -1,8 +1,0 @@
-window.KTD_CONFIG = {
-  APP_VERSION: '2026.09.25.FULL-V1',
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbxWe_YlcOHlgZtgCw1U70eBo7S4W8JeYmxHzleCgJNHdqBYu9YsDfVlQYa1VMbPGeeG/exec',
-  REQUEST_TIMEOUT_MS: 30000,
-  BRIDGE_READY_TIMEOUT_MS: 15000,
-  AUTO_SYNC_MS: 45000,
-  SYNC_BATCH_SIZE: 120
-};
