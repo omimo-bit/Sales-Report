@@ -1,6 +1,6 @@
 window.KTD_CONFIG = {
   APP_VERSION: '2026.09.25.FULL-V3-ROLE-LOGISTIC',
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbwAI6xc4CxCDEwiAgp_7NYQu_YjszdDbP9WfmZpi9HlvtXWapvZ5EOX7WyHDzxfXK3m/exec',
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbxCbak8GceHHqriJykXOyRRSBIkBTrBT5oaSyPrGyzBGqDSjNaQRKYFxdEd5uVQgV8q/exec',
   REQUEST_TIMEOUT_MS: 30000,
   BRIDGE_READY_TIMEOUT_MS: 15000,
   AUTO_SYNC_MS: 45000,
