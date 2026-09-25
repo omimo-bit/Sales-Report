@@ -973,10 +973,11 @@ async function savePhotoToDevice(record) {
    LOGISTIC / BARMEN MODULE
    ========================================================= */
 const LOGISTIC_TYPE_META = {
-  IN: {label:'STOCK MASUK', sign:1},
-  OUT: {label:'STOCK KELUAR / TERPAKAI', sign:-1},
-  RETURN_IN: {label:'RETUR MASUK', sign:1},
-  DAMAGE: {label:'RUSAK / WASTE', sign:-1}
+  IN:{label:'STOCK MASUK',sign:1},
+  OUT:{label:'STOCK KELUAR / TERPAKAI',sign:-1},
+  RETURN_IN:{label:'RETUR MASUK',sign:1},
+  DAMAGE:{label:'RUSAK / WASTE',sign:-1},
+  SALE:{label:'PENJUALAN SPG',sign:-1}
 };
 
 function renderLogisticLocations() {
@@ -1020,12 +1021,12 @@ function renderLogisticProducts() {
   const filtered = products.filter(p => logisticCategory === 'ALL' || String(p.subKategori) === logisticCategory);
   $('#logisticProductList').innerHTML = filtered.map(p => {
     const qty = Number(logisticCart[p.kodeProduk] || 0);
-    return `<div class="product-card ${qty ? 'in-cart' : ''}">
+    return `<div class="product-card ${qty ? 'in-cart' : ''}" data-log-card="${esc(p.kodeProduk)}">
       <div><b>${esc(p.namaProduk)}</b><span class="price">${esc(p.kodeProduk)} • ${esc(p.satuan)}</span></div>
-      <div class="product-controls">
-        <button type="button" data-log-action="minus" data-code="${esc(p.kodeProduk)}">−</button>
-        <strong>${qty}</strong>
-        <button type="button" class="plus" data-log-action="plus" data-code="${esc(p.kodeProduk)}">+</button>
+      <div class="product-controls logistic-product-controls">
+        <button type="button" data-log-action="minus" data-code="${esc(p.kodeProduk)}" aria-label="Kurangi qty">−</button>
+        <input class="logistic-qty-input" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="9999" step="1" value="${qty || ''}" placeholder="0" data-log-qty="${esc(p.kodeProduk)}" aria-label="Qty ${esc(p.namaProduk)}">
+        <button type="button" class="plus" data-log-action="plus" data-code="${esc(p.kodeProduk)}" aria-label="Tambah qty">+</button>
       </div>
     </div>`;
   }).join('');
@@ -1033,13 +1034,39 @@ function renderLogisticProducts() {
   $$('[data-log-action]').forEach(btn => {
     btn.addEventListener('click', () => changeLogisticCart(btn.dataset.code, btn.dataset.logAction === 'plus' ? 1 : -1));
   });
+
+  $$('[data-log-qty]').forEach(input => {
+    input.addEventListener('input', () => setLogisticCartQty(input.dataset.logQty, input.value, false));
+    input.addEventListener('change', () => setLogisticCartQty(input.dataset.logQty, input.value, true));
+    input.addEventListener('blur', () => {
+      const qty = Number(logisticCart[input.dataset.logQty] || 0);
+      input.value = qty ? String(qty) : '';
+    });
+  });
+}
+
+function setLogisticCartQty(code, rawValue, normalizeInput = false) {
+  let qty = Math.floor(Number(rawValue || 0));
+  if (!Number.isFinite(qty)) qty = 0;
+  qty = Math.max(0, Math.min(9999, qty));
+
+  if (qty === 0) delete logisticCart[code];
+  else logisticCart[code] = qty;
+
+  const card = document.querySelector(`[data-log-card="${cssEsc(code)}"]`);
+  if (card) card.classList.toggle('in-cart', qty > 0);
+
+  if (normalizeInput) {
+    const input = document.querySelector(`[data-log-qty="${cssEsc(code)}"]`);
+    if (input) input.value = qty ? String(qty) : '';
+  }
+
+  renderLogisticCart();
 }
 
 function changeLogisticCart(code, delta) {
   const next = Math.max(0, Math.min(9999, Number(logisticCart[code] || 0) + delta));
-  if (!next) delete logisticCart[code]; else logisticCart[code] = next;
-  renderLogisticProducts();
-  renderLogisticCart();
+  setLogisticCartQty(code, next, true);
   if (navigator.vibrate) navigator.vibrate(10);
 }
 
@@ -1077,7 +1104,8 @@ async function saveLogisticMovement() {
   }
 
   const type = $('#logisticType').value || 'IN';
-  if (!LOGISTIC_TYPE_META[type]) {
+  const manualTypes = ['IN','OUT','RETURN_IN','DAMAGE'];
+  if (!manualTypes.includes(type)) {
     showMsg('#logisticSaveMsg', 'Jenis aktivitas logistic tidak valid.', true);
     return;
   }
@@ -1595,6 +1623,12 @@ function formatDuration(ms) {
   const m = Math.floor((ms % 3600000) / 60000);
   return h ? `${h}j ${m}m` : `${m}m`;
 }
+function cssEsc(value) {
+  const text = String(value ?? '');
+  if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(text);
+  return text.replace(/([\\"'\[\]#. :>+~*=()])/g, '\\$1');
+}
+
 function esc(value) {
   return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 }

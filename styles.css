@@ -4,7 +4,7 @@ html,body{margin:0;padding:0;background:var(--bg);font-family:Arial,Helvetica,sa
 body{min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
 .offline-bar{position:sticky;top:0;z-index:50;background:#111;color:#fff;text-align:center;padding:8px;font-size:11px;font-weight:900;letter-spacing:.3px}
 .app-shell{max-width:560px;margin:auto;padding:16px 13px 110px}.card{background:#fff;border:1px solid var(--line);border-radius:22px}.login-card{padding:20px;margin-top:3vh}.panel{padding:17px;margin-bottom:11px}.compact{padding:15px 17px}
-.brand-centered{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;margin:0 auto 26px}.brand-mark{width:100px;height:72px;display:grid;place-items:center}.brand-mark img{max-width:100%;max-height:100%;object-fit:contain}.brand-centered h1{font-size:25px;margin:0}.brand-centered p{font-size:13px;color:var(--muted);margin:5px 0 0}
+.brand-centered{display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;margin:0 auto 28px}.brand-mark{width:150px;height:150px;display:grid;place-items:center;overflow:visible}.brand-mark img{display:block;width:145px;height:145px;max-width:none;max-height:none;object-fit:contain}.brand-copy{width:100%;padding-top:2px}.brand-centered h1{font-size:25px;line-height:1.15;margin:0}.brand-centered p{font-size:13px;color:var(--muted);line-height:1.4;margin:7px 0 0}.login-brand .brand-mark{margin-bottom:2px}
 label,.top-label{display:block;font-size:11px;font-weight:900;letter-spacing:.5px;margin:15px 0 7px}.top-label{margin-top:0}.top-label span{font-weight:400;color:var(--muted)}
 input,select{width:100%;height:52px;border:1px solid #DCDCD4;background:#fff;border-radius:14px;padding:0 14px;font-size:16px;outline:none}input:focus,select:focus{border-color:#C8AA00;box-shadow:0 0 0 3px rgba(255,217,0,.18)}
 .btn-primary{width:100%;height:55px;border:0;border-radius:15px;background:var(--yellow);color:#111;font-weight:900;margin-top:18px}.btn-primary:disabled,.btn-camera:disabled{opacity:.55}.btn-secondary{width:100%;height:48px;border:1px solid var(--line);border-radius:14px;background:#fff;color:#111;font-weight:900;margin-top:9px}.backend-status,.message{min-height:18px;text-align:center;font-size:11px;line-height:1.45;margin-top:9px;color:var(--muted)}.error{color:var(--danger)!important}.success{color:var(--green)!important;font-weight:800}
@@ -40,3 +40,13 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 .stock-negative{color:var(--danger)!important}.stock-zero{color:var(--muted)!important}
 #logisticRoleChip{background:#FFF8C7;border-color:#F1DE64}
 @media(min-width:430px){.logistic-form-grid{grid-template-columns:1fr 1fr;gap:10px}}
+
+/* =========================================================
+   V4 — LOGISTIC TYPED QTY + LINKED SALES STOCK
+   ========================================================= */
+.logistic-product-controls{grid-template-columns:34px minmax(72px,1fr) 34px}
+.logistic-qty-input{width:100%!important;height:36px!important;min-width:0!important;padding:0 6px!important;border:1px solid #D7D7CF!important;border-radius:10px!important;background:#fff!important;text-align:center!important;font-size:15px!important;font-weight:900!important;appearance:textfield;-moz-appearance:textfield}
+.logistic-qty-input::-webkit-outer-spin-button,.logistic-qty-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.logistic-qty-input:focus{border-color:#C8AA00!important;box-shadow:0 0 0 3px rgba(255,217,0,.18)!important}
+.sales-stock-note{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0 0}
+@media(max-width:370px){.login-brand .brand-mark{width:132px;height:132px}.login-brand .brand-mark img{width:128px;height:128px}}
