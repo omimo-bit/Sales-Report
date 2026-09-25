@@ -2168,3 +2168,16 @@ async function queueCountForUser(
     );
   }).length;
 }
+
+await QrisDriveSync.init({
+  getContext: () => ({
+    username: session?.username || '',
+    namaUser: session?.namaUser || session?.username || '',
+    venue: session?.lokasi || '',
+    event: session?.event || ''
+  }),
+
+  getSessionToken: async () => {
+    return await metaGet(TOKEN_KEY);
+  }
+});
