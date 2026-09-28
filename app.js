@@ -14,6 +14,7 @@ const OFFLINE_SINCE_KEY = 'offlineSince';
 
 const STATIC_VENUES = [
   {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Logistic', lokasi:'Logistic', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 1', lokasi:'Drink Stall 1', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 2', lokasi:'Drink Stall 2', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 3', lokasi:'Drink Stall 3', event:'Synchronize Festival'},
