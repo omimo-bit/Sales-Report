@@ -13,7 +13,6 @@ const LAST_SYNC_KEY = 'lastSuccessfulSync';
 const OFFLINE_SINCE_KEY = 'offlineSince';
 
 const STATIC_VENUES = [
-  {key:'STATIC|Synchronize Festival|Storage', lokasi:'Storage', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 1', lokasi:'Drink Stall 1', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 2', lokasi:'Drink Stall 2', event:'Synchronize Festival'},
@@ -24,6 +23,7 @@ const STATIC_VENUES = [
 let db = null;
 let session = null;
 let products = [];
+let logisticItems = [];
 let venues = STATIC_VENUES.slice();
 let payment = 'Cash';
 let selectedCategory = 'ALL';
@@ -37,7 +37,7 @@ let logisticCart = {};
 let logisticCategory = 'ALL';
 let logisticType = 'IN';
 let logisticLocation = '';
-let logisticServerSummary = {location:'',stockByItem:[],recent:[]};
+let logisticServerSummary = {location:'',stockByItem:[],recent:[],catalog:[]};
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => Array.from(document.querySelectorAll(selector));
@@ -243,6 +243,7 @@ async function login() {
 function enterApp(result, offlineRestore) {
   session = result.session;
   products = result.products || [];
+  logisticItems = result.logisticItems || [];
   venues = result.venues || venues;
   cart = {};
   logisticCart = {};
@@ -319,6 +320,7 @@ async function restoreOrSync() {
 
     session = result.session;
     products = result.products || products;
+    logisticItems = result.logisticItems || logisticItems;
     venues = result.venues || venues;
     const newMode = isLogisticRole() ? 'logistic' : 'sales';
 
@@ -1003,11 +1005,56 @@ function renderLogisticLocations() {
   }
 }
 
+function getLogisticCatalog() {
+  const seen = new Set();
+  const out = [];
+
+  (products || []).forEach(p => {
+    const code = String(p.kodeProduk || '');
+    if (!code || seen.has(code)) return;
+    seen.add(code);
+    out.push({
+      kodeProduk:code,
+      namaProduk:p.namaProduk,
+      satuan:p.satuan,
+      itemType:'PRODUCT',
+      category:p.subKategori || p.kategori || 'PRODUCT',
+      source:'PRODUCT'
+    });
+  });
+
+  (logisticItems || []).forEach(item => {
+    const code = String(item.kodeProduk || '');
+    if (!code || seen.has(code)) return;
+    seen.add(code);
+    out.push({
+      ...item,
+      itemType:String(item.itemType || 'CONSUMABLE').toUpperCase(),
+      category:item.category || item.subKategori || item.itemType || 'LAINNYA',
+      source:'LOGISTIC'
+    });
+  });
+
+  return out;
+}
+
+function formatLogisticQty(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return '0';
+  return new Intl.NumberFormat('id-ID', {maximumFractionDigits:3}).format(n);
+}
+
 function renderLogisticCategories() {
-  const cats = ['ALL', ...new Set(products.map(p => p.subKategori || 'LAINNYA'))];
-  $('#logisticProductTabs').innerHTML = cats.map(cat =>
-    `<button class="category-tab ${cat === logisticCategory ? 'active' : ''}" data-log-cat="${esc(cat)}">${esc(cat === 'ALL' ? 'SEMUA' : cat)}</button>`
-  ).join('');
+  const catalog = getLogisticCatalog();
+  const types = ['ALL'];
+  ['PRODUCT','CONSUMABLE','ASSET'].forEach(type => {
+    if (catalog.some(item => item.itemType === type)) types.push(type);
+  });
+
+  $('#logisticProductTabs').innerHTML = types.map(type => {
+    const label = type === 'ALL' ? 'SEMUA' : (type === 'PRODUCT' ? 'PRODUK' : type);
+    return `<button class="category-tab ${type === logisticCategory ? 'active' : ''}" data-log-cat="${esc(type)}">${esc(label)}</button>`;
+  }).join('');
 
   $$('[data-log-cat]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1018,19 +1065,23 @@ function renderLogisticCategories() {
   });
 }
 
+
+
 function renderLogisticProducts() {
-  const filtered = products.filter(p => logisticCategory === 'ALL' || String(p.subKategori) === logisticCategory);
-  $('#logisticProductList').innerHTML = filtered.map(p => {
-    const qty = Number(logisticCart[p.kodeProduk] || 0);
-    return `<div class="product-card ${qty ? 'in-cart' : ''}" data-log-card="${esc(p.kodeProduk)}">
-      <div><b>${esc(p.namaProduk)}</b><span class="price">${esc(p.kodeProduk)} • ${esc(p.satuan)}</span></div>
+  const catalog = getLogisticCatalog();
+  const filtered = catalog.filter(item => logisticCategory === 'ALL' || item.itemType === logisticCategory);
+  $('#logisticProductList').innerHTML = filtered.length ? filtered.map(item => {
+    const qty = Number(logisticCart[item.kodeProduk] || 0);
+    const typeLabel = item.itemType === 'PRODUCT' ? 'PRODUCT' : item.itemType;
+    return `<div class="product-card ${qty ? 'in-cart' : ''}" data-log-card="${esc(item.kodeProduk)}">
+      <div><b>${esc(item.namaProduk)}</b><span class="price">${esc(item.kodeProduk)} • ${esc(item.satuan)} • ${esc(typeLabel)}</span></div>
       <div class="product-controls logistic-product-controls">
-        <button type="button" data-log-action="minus" data-code="${esc(p.kodeProduk)}" aria-label="Kurangi qty">−</button>
-        <input class="logistic-qty-input" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="9999" step="1" value="${qty || ''}" placeholder="0" data-log-qty="${esc(p.kodeProduk)}" aria-label="Qty ${esc(p.namaProduk)}">
-        <button type="button" class="plus" data-log-action="plus" data-code="${esc(p.kodeProduk)}" aria-label="Tambah qty">+</button>
+        <button type="button" data-log-action="minus" data-code="${esc(item.kodeProduk)}" aria-label="Kurangi qty">−</button>
+        <input class="logistic-qty-input" type="number" inputmode="decimal" min="0" max="999999" step="0.01" value="${qty || ''}" placeholder="0" data-log-qty="${esc(item.kodeProduk)}" aria-label="Qty ${esc(item.namaProduk)}">
+        <button type="button" class="plus" data-log-action="plus" data-code="${esc(item.kodeProduk)}" aria-label="Tambah qty">+</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('') : '<div class="empty-state">Belum ada item pada kategori ini.</div>';
 
   $$('[data-log-action]').forEach(btn => {
     btn.addEventListener('click', () => changeLogisticCart(btn.dataset.code, btn.dataset.logAction === 'plus' ? 1 : -1));
@@ -1046,10 +1097,12 @@ function renderLogisticProducts() {
   });
 }
 
+
+
 function setLogisticCartQty(code, rawValue, normalizeInput = false) {
-  let qty = Math.floor(Number(rawValue || 0));
+  let qty = Number(String(rawValue || '0').replace(',', '.'));
   if (!Number.isFinite(qty)) qty = 0;
-  qty = Math.max(0, Math.min(9999, qty));
+  qty = Math.max(0, Math.min(999999, Math.round(qty * 1000) / 1000));
 
   if (qty === 0) delete logisticCart[code];
   else logisticCart[code] = qty;
@@ -1065,6 +1118,8 @@ function setLogisticCartQty(code, rawValue, normalizeInput = false) {
   renderLogisticCart();
 }
 
+
+
 function changeLogisticCart(code, delta) {
   const next = Math.max(0, Math.min(9999, Number(logisticCart[code] || 0) + delta));
   setLogisticCartQty(code, next, true);
@@ -1072,29 +1127,33 @@ function changeLogisticCart(code, delta) {
 }
 
 function logisticCartLines() {
-  return products.filter(p => Number(logisticCart[p.kodeProduk] || 0) > 0);
+  return getLogisticCatalog().filter(item => Number(logisticCart[item.kodeProduk] || 0) > 0);
 }
+
+
 
 function renderLogisticCart() {
   const lines = logisticCartLines();
-  const qty = lines.reduce((sum, p) => sum + Number(logisticCart[p.kodeProduk] || 0), 0);
+  const qty = lines.reduce((sum, item) => sum + Number(logisticCart[item.kodeProduk] || 0), 0);
   const meta = LOGISTIC_TYPE_META[logisticType] || LOGISTIC_TYPE_META.IN;
 
-  $('#logisticCartInfo').textContent = lines.length ? `${lines.length} produk • ${qty} qty` : 'Belum ada item';
-  $('#logisticCartList').innerHTML = lines.length ? lines.map(p => {
-    const q = Number(logisticCart[p.kodeProduk] || 0);
-    return `<div class="cart-row"><div><b>${esc(p.namaProduk)}</b><span>${esc(p.kodeProduk)} • ${esc(p.satuan)}</span></div><strong>${q} qty</strong></div>`;
-  }).join('') : '<div class="cart-empty">Pilih satu atau beberapa produk di atas.</div>';
+  $('#logisticCartInfo').textContent = lines.length ? `${lines.length} item • ${formatLogisticQty(qty)} qty` : 'Belum ada item';
+  $('#logisticCartList').innerHTML = lines.length ? lines.map(item => {
+    const q = Number(logisticCart[item.kodeProduk] || 0);
+    return `<div class="cart-row"><div><b>${esc(item.namaProduk)}</b><span>${esc(item.kodeProduk)} • ${esc(item.satuan)} • ${esc(item.itemType)}</span></div><strong>${formatLogisticQty(q)} qty</strong></div>`;
+  }).join('') : '<div class="cart-empty">Pilih produk, consumable, atau asset di atas.</div>';
 
-  $('#logisticTotalQty').textContent = formatNumber(qty);
+  $('#logisticTotalQty').textContent = formatLogisticQty(qty);
   $('#logisticTypeLabel').textContent = `${meta.sign > 0 ? '+' : '−'} ${meta.label}`;
 }
+
+
 
 async function saveLogisticMovement() {
   if (!session || !isLogisticRole()) return;
   const lines = logisticCartLines();
   if (!lines.length) {
-    showMsg('#logisticSaveMsg', 'Pilih minimal 1 produk.', true);
+    showMsg('#logisticSaveMsg', 'Pilih minimal 1 item.', true);
     return;
   }
 
@@ -1116,17 +1175,18 @@ async function saveLogisticMovement() {
   const deviceId = await metaGet(DEVICE_KEY);
   const note = $('#logisticNote').value.trim();
 
-  const records = lines.map((p, index) => ({
+  const records = lines.map((item, index) => ({
     idLogistic: 'LG-' + randomId8(),
     batchId,
     clientTimestamp: now + index,
     event: session.event,
     lokasi: location,
     tipe: type,
-    kodeProduk: p.kodeProduk,
-    namaProduk: p.namaProduk,
-    qty: Number(logisticCart[p.kodeProduk] || 0),
-    satuan: p.satuan,
+    kodeProduk: item.kodeProduk,
+    namaProduk: item.namaProduk,
+    qty: Number(logisticCart[item.kodeProduk] || 0),
+    satuan: item.satuan,
+    itemType: item.itemType,
     ownerUsername: String(session.username || '').toLowerCase(),
     username: session.username,
     namaUser: session.namaUser || session.username,
@@ -1150,6 +1210,8 @@ async function saveLogisticMovement() {
   if (navigator.vibrate) navigator.vibrate([25,30,25]);
   if (navigator.onLine) setTimeout(syncAll, 250);
 }
+
+
 
 async function syncLogisticQueue() {
   const token = await metaGet(TOKEN_KEY);
@@ -1214,6 +1276,11 @@ async function refreshLogisticSummary(forceNetwork = false) {
     try {
       const token = await metaGet(TOKEN_KEY);
       logisticServerSummary = await KtdBridge.call('getLogisticSummary', {token, location});
+      if (Array.isArray(logisticServerSummary?.catalog)) {
+        logisticItems = logisticServerSummary.catalog.filter(x => String(x.source || '').toUpperCase() === 'LOGISTIC');
+        renderLogisticCategories();
+        renderLogisticProducts();
+      }
       await metaSet(cacheKey, logisticServerSummary);
       const localNow = await getLocalLogisticSummary(location);
       renderLogisticSummary(mergeLogisticSummary(logisticServerSummary, localNow));
@@ -1233,69 +1300,81 @@ async function getLocalLogisticSummary(location) {
   );
 
   const map = new Map();
-  for (const p of products) map.set(p.kodeProduk, {kodeProduk:p.kodeProduk,namaProduk:p.namaProduk,satuan:p.satuan,stock:0});
+  for (const item of getLogisticCatalog()) {
+    map.set(item.kodeProduk, {
+      kodeProduk:item.kodeProduk,namaProduk:item.namaProduk,satuan:item.satuan,
+      itemType:item.itemType,category:item.category,source:item.source,stock:0
+    });
+  }
   rows.forEach(r => {
-    if (!map.has(r.kodeProduk)) map.set(r.kodeProduk, {kodeProduk:r.kodeProduk,namaProduk:r.namaProduk,satuan:r.satuan,stock:0});
+    if (!map.has(r.kodeProduk)) map.set(r.kodeProduk, {kodeProduk:r.kodeProduk,namaProduk:r.namaProduk,satuan:r.satuan,itemType:r.itemType || 'UNKNOWN',category:'LAINNYA',source:'LOCAL',stock:0});
     const meta = LOGISTIC_TYPE_META[r.tipe] || {sign:0};
     map.get(r.kodeProduk).stock += Number(r.qty || 0) * meta.sign;
   });
 
-  const recent = rows.slice().sort((a,b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).slice(0, 25).map(r => ({
-    idLogistic:r.idLogistic,
-    timestamp:r.createdAt,
-    tipe:r.tipe,
-    kodeProduk:r.kodeProduk,
-    namaProduk:r.namaProduk,
-    qty:Number(r.qty || 0),
-    qtySigned:Number(r.qty || 0) * (LOGISTIC_TYPE_META[r.tipe]?.sign || 0),
-    satuan:r.satuan,
-    namaUser:r.namaUser || r.username,
-    role:r.role || '',
-    keterangan:r.keterangan || '',
-    local:true
+  const recent = rows.slice().sort((a,b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).slice(0,25).map(r => ({
+    idLogistic:r.idLogistic,timestamp:r.createdAt,tipe:r.tipe,kodeProduk:r.kodeProduk,namaProduk:r.namaProduk,
+    qty:Number(r.qty || 0),qtySigned:Number(r.qty || 0) * (LOGISTIC_TYPE_META[r.tipe]?.sign || 0),
+    satuan:r.satuan,namaUser:r.namaUser || r.username,role:r.role || '',keterangan:r.keterangan || '',local:true
   }));
 
   return {location, stockByItem:[...map.values()], recent};
 }
 
+
+
 function mergeLogisticSummary(server, local) {
   const stockMap = new Map();
-  products.forEach(p => stockMap.set(p.kodeProduk, {kodeProduk:p.kodeProduk,namaProduk:p.namaProduk,satuan:p.satuan,stock:0}));
+  getLogisticCatalog().forEach(item => stockMap.set(item.kodeProduk, {
+    kodeProduk:item.kodeProduk,namaProduk:item.namaProduk,satuan:item.satuan,
+    itemType:item.itemType,category:item.category,source:item.source,stock:0
+  }));
+
   for (const source of [server?.stockByItem || [], local?.stockByItem || []]) {
     source.forEach(x => {
       const key = x.kodeProduk || x.namaProduk;
-      if (!stockMap.has(key)) stockMap.set(key, {kodeProduk:x.kodeProduk,namaProduk:x.namaProduk,satuan:x.satuan,stock:0});
-      stockMap.get(key).stock += Number(x.stock || 0);
+      if (!stockMap.has(key)) stockMap.set(key, {kodeProduk:x.kodeProduk,namaProduk:x.namaProduk,satuan:x.satuan,itemType:x.itemType || 'UNKNOWN',category:x.category || 'LAINNYA',source:x.source || 'UNKNOWN',stock:0});
+      const row = stockMap.get(key);
+      row.stock += Number(x.stock || 0);
+      if (x.itemType) row.itemType = x.itemType;
+      if (x.category) row.category = x.category;
     });
   }
 
   const recent = [...(local?.recent || []), ...(server?.recent || [])]
     .sort((a,b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
-    .slice(0, 30);
+    .slice(0,50);
 
   return {location:local?.location || server?.location || logisticLocation, stockByItem:[...stockMap.values()], recent};
 }
 
+
+
 function renderLogisticSummary(summary) {
   const location = summary?.location || logisticLocation || session?.lokasi || '';
   $('#logisticSummaryLocation').textContent = `${location} • ${session?.event || ''}`;
-  const stock = (summary?.stockByItem || []).sort((a,b) => String(a.namaProduk).localeCompare(String(b.namaProduk)));
-  const total = stock.reduce((sum, x) => sum + Number(x.stock || 0), 0);
-  $('#logisticStockTotal').textContent = formatNumber(total);
+  const stock = (summary?.stockByItem || []).sort((a,b) => {
+    const typeCompare = String(a.itemType || '').localeCompare(String(b.itemType || ''));
+    return typeCompare || String(a.namaProduk).localeCompare(String(b.namaProduk));
+  });
+
+  $('#logisticStockTotal').textContent = formatNumber(stock.length);
   $('#logisticStockList').classList.toggle('empty-state', !stock.length);
   $('#logisticStockList').innerHTML = stock.length ? stock.map(x => {
     const cls = Number(x.stock) < 0 ? 'stock-negative' : (Number(x.stock) === 0 ? 'stock-zero' : '');
-    return `<div class="summary-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><small>${esc(x.kodeProduk || '')} • ${esc(x.satuan || '')}</small></div><div class="numbers"><strong class="${cls}">${formatNumber(x.stock)} qty</strong></div></div>`;
-  }).join('') : 'Belum ada pergerakan stock.';
+    return `<div class="summary-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><small>${esc(x.kodeProduk || '')} • ${esc(x.satuan || '')} • ${esc(x.itemType || 'ITEM')}</small></div><div class="numbers"><strong class="${cls}">${formatLogisticQty(x.stock)} qty</strong></div></div>`;
+  }).join('') : 'Belum ada item stock.';
 
   const recent = summary?.recent || [];
   $('#logisticRecentList').classList.toggle('empty-state', !recent.length);
   $('#logisticRecentList').innerHTML = recent.length ? recent.map(x => {
     const signed = Number(x.qtySigned || 0);
-    const label = LOGISTIC_TYPE_META[x.tipe]?.label || x.tipe || '';
-    return `<div class="logistic-history-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><span>${esc(label)} • ${esc(x.namaUser || '')}${x.local ? ' • LOCAL/PENDING' : ''}</span><small>${formatDateTime(x.timestamp)}${x.keterangan ? ' • ' + esc(x.keterangan) : ''}</small></div><div class="movement"><strong class="${signed >= 0 ? 'movement-positive' : 'movement-negative'}">${signed >= 0 ? '+' : ''}${formatNumber(signed)}</strong><span>${esc(x.satuan || '')}</span></div></div>`;
+    const label = x.tipe === 'AUTO_USAGE' ? 'AUTO CONSUMABLE' : (LOGISTIC_TYPE_META[x.tipe]?.label || x.tipe || '');
+    return `<div class="logistic-history-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><span>${esc(label)} • ${esc(x.namaUser || '')}${x.local ? ' • LOCAL/PENDING' : ''}</span><small>${formatDateTime(x.timestamp)}${x.keterangan ? ' • ' + esc(x.keterangan) : ''}</small></div><div class="movement"><strong class="${signed >= 0 ? 'movement-positive' : 'movement-negative'}">${signed >= 0 ? '+' : ''}${formatLogisticQty(signed)}</strong><span>${esc(x.satuan || '')}</span></div></div>`;
   }).join('') : 'Belum ada movement.';
 }
+
+
 
 async function updateMetrics() {
   if (!session) return;

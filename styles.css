@@ -50,3 +50,6 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 .logistic-qty-input:focus{border-color:#C8AA00!important;box-shadow:0 0 0 3px rgba(255,217,0,.18)!important}
 .sales-stock-note{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0 0}
 @media(max-width:370px){.login-brand .brand-mark{width:132px;height:132px}.login-brand .brand-mark img{width:128px;height:128px}}
+
+/* V5 Logistic Master */
+#logisticProductList .price{text-transform:none}.stock-negative{color:var(--danger)!important}.stock-zero{color:var(--muted)!important}
