@@ -1,6 +1,6 @@
 window.KTD_CONFIG = {
   APP_VERSION: '2026.09.28.FULL-V5-LOGISTIC-MASTER-MAPPING',
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzDo_5qmayjzuiLTkfFdBKpB4es6UCwuE5o8vAgDX5Z0wMNkYXTONWnOda2pnLYo-A/exec',
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbybqIW88cGCviVickB4QOZIb4_hwVspf62b60TUeeLeiy2KW20dIWhTYeXxjMglKT_A/exec',
   REQUEST_TIMEOUT_MS: 30000,
   BRIDGE_READY_TIMEOUT_MS: 15000,
   AUTO_SYNC_MS: 45000,
