@@ -150,7 +150,7 @@ function bindEvents() {
 
 async function checkBackend(showSuccess = true) {
   if (!navigator.onLine) {
-    setBackendStatus('OFFLINE • backend tidak dapat dicek', true);
+    setBackendStatus('OFFLINE • kita tidak dapat dicek', true);
     return false;
   }
 
@@ -164,13 +164,13 @@ async function checkBackend(showSuccess = true) {
     health = await KtdBridge.call('healthCheck');
     bootstrap = await KtdBridge.call('publicBootstrap');
   } catch (err) {
-    setBackendStatus('Backend belum merespons • ' + (err?.message || String(err)), true);
+    setBackendStatus('Kita belum merespons • ' + (err?.message || String(err)), true);
     if (showSuccess) console.error('Backend/Bridge error:', err);
     return false;
   }
 
   if (!health?.ok) {
-    setBackendStatus('Backend merespons tetapi healthCheck belum OK.', true);
+    setBackendStatus('Kita merespons tetapi healthCheck belum OK.', true);
     return false;
   }
 
@@ -181,10 +181,10 @@ async function checkBackend(showSuccess = true) {
 
   try {
     await metaSet(VENUE_CACHE_KEY, venues);
-    setBackendStatus('Backend siap • Google Sheets terhubung', false, true);
+    setBackendStatus('Kita saling terhubung', false, true);
   } catch (err) {
     console.error('Local IndexedDB cache error:', err);
-    setBackendStatus('Backend siap • cache lokal mode kompatibilitas', false, true);
+    setBackendStatus('Kita siap • cache lokal mode kompatibilitas', false, true);
   }
 
   return true;
@@ -225,7 +225,7 @@ async function login() {
 
   try {
     const backendReady = await checkBackend(false);
-    if (!backendReady) throw new Error('Backend belum siap. Tekan TES KONEKSI.');
+    if (!backendReady) throw new Error('Kita belum siap. Tekan TES KONEKSI.');
 
     const result = await KtdBridge.call('login', {username, password, venueKey});
     await metaSet(TOKEN_KEY, result.token);
