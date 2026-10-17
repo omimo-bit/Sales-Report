@@ -35,8 +35,8 @@
       <select id="venue"><option value="">Pilih lokasi venue</option></select>
 
       <button id="loginBtn" class="btn-primary" type="button">MASUK</button>
-      <button id="testConnectionBtn" class="btn-secondary" type="button">TES HUBUNGAN</button>
-      <div id="backendStatus" class="backend-status">Kita belum saling periksa.</div>
+      <button id="testConnectionBtn" class="btn-secondary" type="button">TES KONEKSI</button>
+      <div id="backendStatus" class="backend-status">Backend belum diperiksa.</div>
       <div id="loginMsg" class="message"></div>
     </section>
 
@@ -112,6 +112,8 @@
           <div><span>Last Sync</span><strong id="lastSyncAt">Belum pernah</strong></div>
         </div>
         <button id="syncBtn" class="btn-dark" type="button">SYNC SEKARANG</button>
+        <button id="pushPendingBtn" class="btn-force-push" type="button">PUSH SEMUA PENDING KE BACKEND</button>
+        <div class="push-pending-note">Data lokal hanya dihapus setelah backend mengonfirmasi accepted/duplicate.</div>
       </section>
 
       <section class="card panel sales-summary">
@@ -122,7 +124,10 @@
         <div class="grand-totals">
           <div><span>Total Qty</span><strong id="myTotalQty">0</strong></div>
           <div><span>Total Value</span><strong id="myTotalValue">Rp0</strong></div>
+          <div class="payment-total cash"><span>Nominal CASH</span><strong id="myCashValue">Rp0</strong></div>
+          <div class="payment-total qris"><span>Nominal QRIS</span><strong id="myQrisValue">Rp0</strong></div>
         </div>
+        <div class="payment-total-hint">CASH + QRIS = data backend + transaksi pending lokal pada HP ini.</div>
         <div class="summary-block"><div class="summary-subtitle">PER ITEM</div><div id="itemSummary" class="summary-table empty-state">Belum ada penjualan.</div></div>
         <div class="summary-block"><div class="summary-subtitle">PER LOKASI</div><div id="locationSummary" class="summary-table empty-state">Belum ada penjualan.</div></div>
       </section>

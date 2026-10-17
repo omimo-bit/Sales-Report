@@ -13,7 +13,6 @@ const LAST_SYNC_KEY = 'lastSuccessfulSync';
 const OFFLINE_SINCE_KEY = 'offlineSince';
 
 const STATIC_VENUES = [
-  {key:'STATIC|Synchronize Festival|Logistic', lokasi:'Logistic', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 1', lokasi:'Drink Stall 1', event:'Synchronize Festival'},
   {key:'STATIC|Synchronize Festival|Drink Stall 2', lokasi:'Drink Stall 2', event:'Synchronize Festival'},
@@ -32,7 +31,7 @@ let cart = {};
 let currentPhotoId = '';
 let currentPreviewUrl = '';
 let syncInProgress = false;
-let serverSummary = {totalQty:0,totalValue:0,byItem:[],byLocation:[]};
+let serverSummary = {totalQty:0,totalValue:0,byItem:[],byLocation:[],byPayment:{Cash:{qty:0,value:0},QRIS:{qty:0,value:0}}};
 let currentMode = 'login';
 let logisticCart = {};
 let logisticCategory = 'ALL';
@@ -102,6 +101,7 @@ function bindEvents() {
   $('#logoutBtn').addEventListener('click', logout);
   $('#saveBtn').addEventListener('click', saveOrder);
   $('#syncBtn').addEventListener('click', syncAll);
+  $('#pushPendingBtn').addEventListener('click', forcePushAllPending);
   $('#refreshSummaryBtn').addEventListener('click', () => refreshMySummary(true));
   $('#clearCartBtn').addEventListener('click', () => {
     cart = {};
@@ -150,7 +150,7 @@ function bindEvents() {
 
 async function checkBackend(showSuccess = true) {
   if (!navigator.onLine) {
-    setBackendStatus('OFFLINE • kita tidak dapat dicek', true);
+    setBackendStatus('OFFLINE • backend tidak dapat dicek', true);
     return false;
   }
 
@@ -164,13 +164,13 @@ async function checkBackend(showSuccess = true) {
     health = await KtdBridge.call('healthCheck');
     bootstrap = await KtdBridge.call('publicBootstrap');
   } catch (err) {
-    setBackendStatus('Kita belum merespons • ' + (err?.message || String(err)), true);
+    setBackendStatus('Backend belum merespons • ' + (err?.message || String(err)), true);
     if (showSuccess) console.error('Backend/Bridge error:', err);
     return false;
   }
 
   if (!health?.ok) {
-    setBackendStatus('Kita merespons tetapi healthCheck belum OK.', true);
+    setBackendStatus('Backend merespons tetapi healthCheck belum OK.', true);
     return false;
   }
 
@@ -181,10 +181,10 @@ async function checkBackend(showSuccess = true) {
 
   try {
     await metaSet(VENUE_CACHE_KEY, venues);
-    setBackendStatus('Kita saling terhubung', false, true);
+    setBackendStatus('Backend siap • Google Sheets terhubung', false, true);
   } catch (err) {
     console.error('Local IndexedDB cache error:', err);
-    setBackendStatus('Kita siap • cache lokal mode kompatibilitas', false, true);
+    setBackendStatus('Backend siap • cache lokal mode kompatibilitas', false, true);
   }
 
   return true;
@@ -225,7 +225,7 @@ async function login() {
 
   try {
     const backendReady = await checkBackend(false);
-    if (!backendReady) throw new Error('Kita belum siap. Tekan TES KONEKSI.');
+    if (!backendReady) throw new Error('Backend belum siap. Tekan TES KONEKSI.');
 
     const result = await KtdBridge.call('login', {username, password, venueKey});
     await metaSet(TOKEN_KEY, result.token);
@@ -709,48 +709,28 @@ async function syncAll() {
   }
 }
 
-async function syncQrisPhotos() {
+async function syncQrisPhotos(options = {}) {
   const token = await metaGet(TOKEN_KEY);
-  if (!token || !session || !navigator.onLine) return;
-
+  if (!token || !session || !navigator.onLine) return {attempted:0,uploaded:0,failed:0};
   const all = await photoAll();
   const username = String(session.username || '').toLowerCase();
-  const pending = all.filter(p =>
-    String(p.ownerUsername || '').toLowerCase() === username &&
-    p.state === 'COMMITTED' && p.orderId && p.uploadStatus !== 'UPLOADED'
-  ).sort((a,b) => Number(a.clientTimestamp || 0) - Number(b.clientTimestamp || 0)).slice(0, 5);
-
+  const candidates = all.filter(p => String(p.ownerUsername || '').toLowerCase() === username && p.state === 'COMMITTED' && p.orderId && p.uploadStatus !== 'UPLOADED')
+    .sort((a,b) => Number(a.clientTimestamp || 0) - Number(b.clientTimestamp || 0));
+  const pending = options.all ? candidates : candidates.slice(0,5);
+  let uploaded=0, failed=0;
   for (const photo of pending) {
     try {
-      photo.uploadStatus = 'UPLOADING';
-      photo.lastError = '';
-      await photoPut(photo);
-
-      const base64 = await blobToBase64(photo.blob);
-      const result = await KtdBridge.call('uploadQrisPhoto', {
-        token,
-        orderId: photo.orderId,
-        clientTimestamp: photo.clientTimestamp,
-        items: photo.items || [],
-        base64
-      });
-
-      photo.uploadStatus = 'UPLOADED';
-      photo.driveUrl = result.url || '';
-      photo.driveFileId = result.fileId || '';
-      photo.driveFileName = result.fileName || '';
-      photo.uploadedAt = new Date().toISOString();
-      photo.lastError = '';
-      await photoPut(photo);
-
-      if (photo.driveUrl) await updateQueueProofByOrder(photo.orderId, photo.driveUrl);
-    } catch (err) {
-      photo.uploadStatus = 'ERROR';
-      photo.lastError = String(err?.message || err);
-      photo.lastAttemptAt = new Date().toISOString();
-      await photoPut(photo);
+      photo.uploadStatus='UPLOADING'; photo.lastError=''; photo.lastAttemptAt=new Date().toISOString(); await photoPut(photo);
+      const base64=await blobToBase64(photo.blob);
+      const result=await KtdBridge.call('uploadQrisPhoto',{token,orderId:photo.orderId,clientTimestamp:photo.clientTimestamp,items:photo.items||[],base64});
+      photo.uploadStatus='UPLOADED'; photo.driveUrl=result.url||''; photo.driveFileId=result.fileId||''; photo.driveFileName=result.fileName||''; photo.uploadedAt=new Date().toISOString(); photo.lastError=''; await photoPut(photo);
+      if(photo.driveUrl) await updateQueueProofByOrder(photo.orderId,photo.driveUrl);
+      uploaded++;
+    } catch(err) {
+      photo.uploadStatus='ERROR'; photo.lastError=String(err?.message||err); photo.lastAttemptAt=new Date().toISOString(); await photoPut(photo); failed++;
     }
   }
+  return {attempted:pending.length,uploaded,failed};
 }
 
 async function blobToBase64(blob) {
@@ -773,60 +753,64 @@ async function updateQueueProofByOrder(orderId, url) {
   await queuePutMany(mine);
 }
 
-async function syncQueue() {
-  const token = await metaGet(TOKEN_KEY);
-  if (!token || !session || !navigator.onLine) return;
-  let totalSynced = 0;
-
-  while (navigator.onLine) {
-    const pending = await getPendingForUser(session.username, Number(window.KTD_CONFIG?.SYNC_BATCH_SIZE || 120));
-    if (!pending.length) break;
-
-    pending.forEach(row => {
-      row.syncStatus = 'SYNCING';
-      row.lastSyncAttempt = new Date().toISOString();
-    });
+async function syncQueue(options = {}) {
+  const token=await metaGet(TOKEN_KEY);
+  if(!token || !session || !navigator.onLine) return {totalSynced:0,pendingRemaining:session?await queueCountForUser(session.username):0,errorRemaining:session?await queueErrorCountForUser(session.username):0};
+  if(options.retryErrors) await resetSalesErrorsForUser(session.username);
+  let totalSynced=0;
+  while(navigator.onLine){
+    const pending=await getPendingForUser(session.username,Number(window.KTD_CONFIG?.SYNC_BATCH_SIZE||120));
+    if(!pending.length) break;
+    pending.forEach(row=>{row.syncStatus='SYNCING';row.lastSyncAttempt=new Date().toISOString();});
     await queuePutMany(pending);
-
     let result;
-    try {
-      result = await KtdBridge.call('syncTransactions', {token, records:pending});
-    } catch (err) {
-      pending.forEach(row => {
-        row.syncStatus = 'PENDING';
-        row.lastSyncError = String(err?.message || err);
-      });
-      await queuePutMany(pending);
-      throw err;
+    try{ result=await KtdBridge.call('syncTransactions',{token,records:pending}); }
+    catch(err){ pending.forEach(row=>{row.syncStatus='PENDING';row.lastSyncError=String(err?.message||err);}); await queuePutMany(pending); throw err; }
+    const accepted=new Set([...(result.accepted||[]),...(result.duplicates||[])]);
+    const rejectedMap=new Map((result.rejected||[]).map(x=>[x.idTransaksi,x.error]));
+    for(const row of pending){
+      if(accepted.has(row.idTransaksi)){ await queueDelete(row.idTransaksi); totalSynced++; }
+      else if(rejectedMap.has(row.idTransaksi)){ row.syncStatus='ERROR'; row.lastSyncError=rejectedMap.get(row.idTransaksi)||'Ditolak server.'; await queuePut(row); }
+      else { row.syncStatus='PENDING'; row.lastSyncError='Server belum mengonfirmasi transaksi.'; await queuePut(row); }
     }
-
-    const accepted = new Set([...(result.accepted || []), ...(result.duplicates || [])]);
-    const rejectedMap = new Map((result.rejected || []).map(x => [x.idTransaksi, x.error]));
-
-    for (const row of pending) {
-      if (accepted.has(row.idTransaksi)) {
-        await queueDelete(row.idTransaksi);
-        totalSynced++;
-      } else if (rejectedMap.has(row.idTransaksi)) {
-        row.syncStatus = 'ERROR';
-        row.lastSyncError = rejectedMap.get(row.idTransaksi) || 'Ditolak server.';
-        await queuePut(row);
-      } else {
-        row.syncStatus = 'PENDING';
-        row.lastSyncError = 'Server belum mengonfirmasi transaksi.';
-        await queuePut(row);
-      }
-    }
-
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r=>setTimeout(r,80));
   }
+  const pendingRemaining=await queueCountForUser(session.username), errorRemaining=await queueErrorCountForUser(session.username);
+  if(totalSynced && !options.silent) showMsg('#saveMsg',`${formatNumber(totalSynced)} transaksi berhasil disinkronkan.`,false);
+  return {totalSynced,pendingRemaining,errorRemaining};
+}
 
-  if (totalSynced) showMsg('#saveMsg', `${formatNumber(totalSynced)} transaksi berhasil disinkronkan.`, false);
+async function resetSalesErrorsForUser(username){
+  const u=String(username||'').toLowerCase(), rows=await queueAll();
+  const mine=rows.filter(r=>String(r.ownerUsername||'').toLowerCase()===u && r.syncStatus==='ERROR');
+  mine.forEach(r=>{r.syncStatus='PENDING';r.forceRetryAt=new Date().toISOString();if(r.lastSyncError&&!r.previousSyncError)r.previousSyncError=r.lastSyncError;r.lastSyncError='';});
+  if(mine.length) await queuePutMany(mine);
+  return mine.length;
+}
+
+async function forcePushAllPending(){
+  if(!session || isLogisticRole()) return;
+  if(!navigator.onLine){showMsg('#saveMsg','Tidak bisa PUSH saat offline. Data tetap aman di HP.',true);return;}
+  if(syncInProgress){showMsg('#saveMsg','Sync sedang berjalan. Tunggu sampai selesai lalu tekan PUSH lagi.',true);return;}
+  syncInProgress=true; updateNetworkState(true); setButton('#pushPendingBtn',true,'MENGIRIM SEMUA DATA...');
+  try{
+    const beforePending=await queueCountForUser(session.username), beforeErrors=await queueErrorCountForUser(session.username);
+    const sales=await syncQueue({retryErrors:true,silent:true});
+    const photos=await syncQrisPhotos({all:true});
+    await metaSet(LAST_SYNC_KEY,new Date().toISOString()); await refreshMySummary(true); await updateMetrics(); await renderPhotoVault();
+    const afterPending=await queueCountForUser(session.username), afterErrors=await queueErrorCountForUser(session.username);
+    if(afterPending===0 && afterErrors===0){
+      showMsg('#saveMsg',`PUSH selesai • ${formatNumber(sales.totalSynced)} transaksi dikonfirmasi backend${photos.uploaded?` • ${formatNumber(photos.uploaded)} foto masuk Drive`:''}`,false);
+    }else{
+      showMsg('#saveMsg',`PUSH selesai sebagian • awal ${formatNumber(beforePending)} pending + ${formatNumber(beforeErrors)} error • berhasil ${formatNumber(sales.totalSynced)} • tersisa ${formatNumber(afterPending)} pending + ${formatNumber(afterErrors)} error. Data yang belum diterima backend tetap tersimpan di HP.`,true);
+    }
+  }catch(err){showMsg('#saveMsg','PUSH tertunda • '+String(err?.message||err)+' • data lokal tidak dihapus.',true);}
+  finally{syncInProgress=false;updateNetworkState(false);setButton('#pushPendingBtn',false,'PUSH SEMUA PENDING KE BACKEND');await updateMetrics();}
 }
 
 async function refreshMySummary(forceNetwork = false) {
   if (!session || isLogisticRole()) return;
-  const cacheKey = 'summary:' + String(session.username || '').toLowerCase();
+  const cacheKey = 'summary:v2:' + String(session.username || '').toLowerCase();
   serverSummary = await metaGet(cacheKey) || serverSummary;
   const local = await getOfflineSummaryForUser(session.username);
   renderMySummary(mergeSummaries(serverSummary, local));
@@ -842,64 +826,29 @@ async function refreshMySummary(forceNetwork = false) {
   }
 }
 
-function renderMySummary(merged) {
-  $('#myTotalQty').textContent = formatNumber(merged.totalQty);
-  $('#myTotalValue').textContent = money(merged.totalValue);
-  $('#itemSummary').classList.toggle('empty-state', !merged.byItem.length);
-  $('#itemSummary').innerHTML = merged.byItem.length ? merged.byItem.map(x =>
-    `<div class="summary-row"><div><b>${esc(x.namaProduk || x.kodeProduk)}</b><small>${esc(x.kodeProduk || '')}${x.satuan ? ' • ' + esc(x.satuan) : ''}</small></div><div class="numbers"><strong>${formatNumber(x.qty)} qty</strong><span>${money(x.value)}</span></div></div>`
-  ).join('') : 'Belum ada penjualan.';
-
-  $('#locationSummary').classList.toggle('empty-state', !merged.byLocation.length);
-  $('#locationSummary').innerHTML = merged.byLocation.length ? merged.byLocation.map(x =>
-    `<div class="summary-row"><div><b>${esc(x.lokasi)}</b><small>Penjualan akun ${esc(session.username)}</small></div><div class="numbers"><strong>${formatNumber(x.qty)} qty</strong><span>${money(x.value)}</span></div></div>`
-  ).join('') : 'Belum ada penjualan.';
+function renderMySummary(merged){
+  const cash=merged?.byPayment?.Cash||{qty:0,value:0}, qris=merged?.byPayment?.QRIS||{qty:0,value:0};
+  $('#myTotalQty').textContent=formatNumber(merged.totalQty); $('#myTotalValue').textContent=money(merged.totalValue);
+  $('#myCashValue').textContent=money(cash.value); $('#myQrisValue').textContent=money(qris.value);
+  $('#itemSummary').classList.toggle('empty-state',!merged.byItem.length);
+  $('#itemSummary').innerHTML=merged.byItem.length?merged.byItem.map(x=>`<div class="summary-row"><div><b>${esc(x.namaProduk||x.kodeProduk)}</b><small>${esc(x.kodeProduk||'')}${x.satuan?' • '+esc(x.satuan):''}</small></div><div class="numbers"><strong>${formatNumber(x.qty)} qty</strong><span>${money(x.value)}</span></div></div>`).join(''):'Belum ada penjualan.';
+  $('#locationSummary').classList.toggle('empty-state',!merged.byLocation.length);
+  $('#locationSummary').innerHTML=merged.byLocation.length?merged.byLocation.map(x=>`<div class="summary-row"><div><b>${esc(x.lokasi)}</b><small>Penjualan akun ${esc(session.username)}</small></div><div class="numbers"><strong>${formatNumber(x.qty)} qty</strong><span>${money(x.value)}</span></div></div>`).join(''):'Belum ada penjualan.';
 }
-
-function mergeSummaries(a, b) {
-  const out = {totalQty:Number(a?.totalQty || 0)+Number(b?.totalQty || 0),totalValue:Number(a?.totalValue || 0)+Number(b?.totalValue || 0),byItem:[],byLocation:[]};
-  const im = new Map();
-  const lm = new Map();
-  for (const x of [...(a?.byItem || []), ...(b?.byItem || [])]) {
-    const key = x.kodeProduk || x.namaProduk;
-    if (!im.has(key)) im.set(key, {kodeProduk:x.kodeProduk,namaProduk:x.namaProduk,satuan:x.satuan,qty:0,value:0});
-    const z = im.get(key); z.qty += Number(x.qty || 0); z.value += Number(x.value || 0);
-  }
-  for (const x of [...(a?.byLocation || []), ...(b?.byLocation || [])]) {
-    const key = x.lokasi || 'Tanpa Lokasi';
-    if (!lm.has(key)) lm.set(key, {lokasi:key,qty:0,value:0});
-    const z = lm.get(key); z.qty += Number(x.qty || 0); z.value += Number(x.value || 0);
-  }
-  out.byItem = [...im.values()].sort((x,y) => String(x.namaProduk).localeCompare(String(y.namaProduk)));
-  out.byLocation = [...lm.values()].sort((x,y) => String(x.lokasi).localeCompare(String(y.lokasi)));
-  return out;
+function normalizePaymentSummary(s){return {Cash:{qty:Number(s?.byPayment?.Cash?.qty||0),value:Number(s?.byPayment?.Cash?.value||0)},QRIS:{qty:Number(s?.byPayment?.QRIS?.qty||0),value:Number(s?.byPayment?.QRIS?.value||0)}};}
+function mergeSummaries(a,b){
+  const pa=normalizePaymentSummary(a),pb=normalizePaymentSummary(b);
+  const out={totalQty:Number(a?.totalQty||0)+Number(b?.totalQty||0),totalValue:Number(a?.totalValue||0)+Number(b?.totalValue||0),byItem:[],byLocation:[],byPayment:{Cash:{qty:pa.Cash.qty+pb.Cash.qty,value:pa.Cash.value+pb.Cash.value},QRIS:{qty:pa.QRIS.qty+pb.QRIS.qty,value:pa.QRIS.value+pb.QRIS.value}}};
+  const im=new Map(),lm=new Map();
+  for(const x of [...(a?.byItem||[]),...(b?.byItem||[])]){const k=x.kodeProduk||x.namaProduk;if(!im.has(k))im.set(k,{kodeProduk:x.kodeProduk,namaProduk:x.namaProduk,satuan:x.satuan,qty:0,value:0});const z=im.get(k);z.qty+=Number(x.qty||0);z.value+=Number(x.value||0);}
+  for(const x of [...(a?.byLocation||[]),...(b?.byLocation||[])]){const k=x.lokasi||'Tanpa Lokasi';if(!lm.has(k))lm.set(k,{lokasi:k,qty:0,value:0});const z=lm.get(k);z.qty+=Number(x.qty||0);z.value+=Number(x.value||0);}
+  out.byItem=[...im.values()].sort((x,y)=>String(x.namaProduk).localeCompare(String(y.namaProduk)));out.byLocation=[...lm.values()].sort((x,y)=>String(x.lokasi).localeCompare(String(y.lokasi)));return out;
 }
-
-async function getOfflineSummaryForUser(username) {
-  const uname = String(username || '').toLowerCase();
-  const rows = (await queueAll()).filter(x => String(x.ownerUsername || '').toLowerCase() === uname);
-  const out = {totalQty:0,totalValue:0,byItem:[],byLocation:[]};
-  const im = new Map();
-  const lm = new Map();
-
-  rows.forEach(x => {
-    const qty = Number(x.qty || 0);
-    const value = qty * Number(x.harga || 0);
-    out.totalQty += qty;
-    out.totalValue += value;
-    const code = x.kodeProduk || '';
-    if (!im.has(code)) im.set(code, {kodeProduk:code,namaProduk:x.namaProduk || code,satuan:x.satuan || '',qty:0,value:0});
-    im.get(code).qty += qty;
-    im.get(code).value += value;
-    const loc = x.lokasi || 'Tanpa Lokasi';
-    if (!lm.has(loc)) lm.set(loc, {lokasi:loc,qty:0,value:0});
-    lm.get(loc).qty += qty;
-    lm.get(loc).value += value;
-  });
-
-  out.byItem = [...im.values()];
-  out.byLocation = [...lm.values()];
-  return out;
+async function getOfflineSummaryForUser(username){
+  const u=String(username||'').toLowerCase(),rows=(await queueAll()).filter(x=>String(x.ownerUsername||'').toLowerCase()===u);
+  const out={totalQty:0,totalValue:0,byItem:[],byLocation:[],byPayment:{Cash:{qty:0,value:0},QRIS:{qty:0,value:0}}},im=new Map(),lm=new Map();
+  rows.forEach(x=>{const qty=Number(x.qty||0),p=products.find(p=>String(p.kodeProduk||'')===String(x.kodeProduk||'')),price=Number(x.harga??p?.harga??0),value=qty*price;out.totalQty+=qty;out.totalValue+=value;const method=String(x.metodePembayaran||'').toUpperCase()==='QRIS'?'QRIS':'Cash';out.byPayment[method].qty+=qty;out.byPayment[method].value+=value;const code=x.kodeProduk||'';if(!im.has(code))im.set(code,{kodeProduk:code,namaProduk:x.namaProduk||p?.namaProduk||code,satuan:x.satuan||p?.satuan||'',qty:0,value:0});im.get(code).qty+=qty;im.get(code).value+=value;const loc=x.lokasi||'Tanpa Lokasi';if(!lm.has(loc))lm.set(loc,{lokasi:loc,qty:0,value:0});lm.get(loc).qty+=qty;lm.get(loc).value+=value;});
+  out.byItem=[...im.values()];out.byLocation=[...lm.values()];return out;
 }
 
 async function renderPhotoVault() {

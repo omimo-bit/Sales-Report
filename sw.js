@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktd-sales-full-v5-logistic-master-mapping-20260928';
+const CACHE_NAME = 'ktd-sales-full-v6-safe-push-payment-totals-20261017';
 const APP_SHELL = [
   './','./index.html','./styles.css','./config.js','./bridge-client.js','./app.js',
   './manifest.webmanifest','./logo.webp','./icon-192.png','./icon-512.png'
