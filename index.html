@@ -132,11 +132,29 @@
         <div class="summary-block"><div class="summary-subtitle">PER LOKASI</div><div id="locationSummary" class="summary-table empty-state">Belum ada penjualan.</div></div>
       </section>
 
+      <section class="card panel sales-date-panel">
+        <div class="summary-head"><div><div class="section-title no-margin">Penjualan per Tanggal</div><div class="hint">Gabungan Report Sales backend + transaksi lokal yang masih tersimpan di HP ini.</div></div></div>
+        <div class="sales-date-controls">
+          <div><label class="top-label" for="salesDateFilter">TANGGAL PENJUALAN</label><input id="salesDateFilter" type="date"></div>
+          <button id="applySalesDateBtn" class="btn-primary date-apply" type="button">TAMPILKAN</button>
+          <button id="todaySalesDateBtn" class="btn-small date-today" type="button">HARI INI</button>
+        </div>
+        <div id="salesDateStatus" class="sales-date-status">Pilih tanggal untuk melihat data.</div>
+        <div class="sales-date-totals">
+          <div><span>Total Qty</span><strong id="salesDateQty">0</strong></div><div><span>Total Value</span><strong id="salesDateValue">Rp0</strong></div>
+          <div><span>CASH</span><strong id="salesDateCash">Rp0</strong></div><div><span>QRIS</span><strong id="salesDateQris">Rp0</strong></div>
+        </div>
+        <div class="sales-date-source">Sumber: <b id="salesDateSource">0 backend • 0 lokal</b></div>
+        <div id="salesDateList" class="sales-date-list"></div>
+      </section>
+
       <section class="card panel vault-panel">
         <div class="summary-head">
           <div><div class="section-title no-margin">Vault Foto QRIS</div><div class="hint">Copy lokal tidak dihapus otomatis meskipun sudah masuk Drive.</div></div>
           <span class="vault-count"><b id="photoVaultCount">0</b> foto</span>
         </div>
+        <button id="downloadAllQrisBtn" class="btn-download-all-qris" type="button">DOWNLOAD SEMUA FOTO QRIS (.ZIP)</button>
+        <div class="bulk-photo-note">Mengunduh seluruh foto QRIS yang masih tersimpan di HP akun ini sekaligus. Foto di Vault tidak akan dihapus.</div>
         <div id="storageStatus" class="storage-status">Memeriksa storage...</div>
         <div id="photoVaultList" class="vault-list"></div>
       </section>

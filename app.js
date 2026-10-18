@@ -103,6 +103,10 @@ function bindEvents() {
   $('#syncBtn').addEventListener('click', syncAll);
   $('#pushPendingBtn').addEventListener('click', forcePushAllPending);
   $('#refreshSummaryBtn').addEventListener('click', () => refreshMySummary(true));
+  $('#downloadAllQrisBtn').addEventListener('click', downloadAllQrisPhotos);
+  $('#applySalesDateBtn').addEventListener('click', () => refreshSalesByDate(true));
+  $('#todaySalesDateBtn').addEventListener('click', async () => { $('#salesDateFilter').value = jakartaDateKey(Date.now()); await refreshSalesByDate(true); });
+  $('#salesDateFilter').addEventListener('change', () => refreshSalesByDate(true));
   $('#clearCartBtn').addEventListener('click', () => {
     cart = {};
     renderProducts();
@@ -284,8 +288,10 @@ function enterApp(result, offlineRestore) {
   renderCart();
   renderQrisRequirement();
   renderPhotoVault();
+  ensureSalesDateFilterDefault();
   updateMetrics();
   refreshMySummary(!offlineRestore && navigator.onLine);
+  refreshSalesByDate(!offlineRestore && navigator.onLine);
 }
 
 function normalizedRole() {
@@ -338,6 +344,8 @@ async function restoreOrSync() {
       renderProducts();
       renderCart();
       renderPhotoVault();
+      ensureSalesDateFilterDefault();
+      await refreshSalesByDate(false);
     }
   } catch (err) {
     const msg = String(err?.message || err).toLowerCase();
@@ -920,6 +928,113 @@ async function savePhotoToDevice(record) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+/* =========================================================
+   ADD-ON V6.1 — DOWNLOAD SEMUA FOTO QRIS
+   ========================================================= */
+async function downloadAllQrisPhotos(){
+  if(!session||isLogisticRole())return;
+  const user=String(session.username||'').toLowerCase();
+  const rows=(await photoAll()).filter(p=>String(p.ownerUsername||'').toLowerCase()===user&&p.blob)
+    .sort((a,b)=>Number(a.clientTimestamp||0)-Number(b.clientTimestamp||0));
+  if(!rows.length){showMsg('#saveMsg','Tidak ada foto QRIS lokal di HP ini.',true);return;}
+  setButton('#downloadAllQrisBtn',true,`MENYIAPKAN ${rows.length} FOTO...`);
+  try{
+    const used=new Set(),entries=[];
+    rows.forEach((r,i)=>{let name=uniqueZipFileName(makeLocalQrisExportName(r,i+1),used);entries.push({name,blob:r.blob,date:r.createdAt?new Date(r.createdAt):new Date(Number(r.clientTimestamp||Date.now()))});});
+    const manifest=[['No','File','Photo ID','Order ID','SPG','Waktu','Nominal','Status Drive','Drive URL']];
+    rows.forEach((r,i)=>manifest.push([String(i+1),entries[i].name,String(r.photoId||''),String(r.orderId||''),String(r.namaUser||r.username||session.namaUser||session.username||''),String(r.createdAt||''),String(r.totalValue||0),String(r.uploadStatus||''),String(r.driveUrl||'')]));
+    const csv='\uFEFF'+manifest.map(row=>row.map(csvCell).join(',')).join('\r\n');
+    entries.push({name:'manifest.csv',blob:new Blob([csv],{type:'text/csv;charset=utf-8'}),date:new Date()});
+    const zip=await createStoredZip(entries);
+    const file=`QRIS_ALL_${safeFilePart(session.namaUser||session.username)}_${jakartaDateKey(Date.now()).replaceAll('-','')}_${rows.length}FOTO.zip`;
+    await downloadBlobToDevice(zip,file);
+    showMsg('#saveMsg',`${formatNumber(rows.length)} foto QRIS disiapkan dalam ${file}. Foto asli di Vault TIDAK dihapus.`,false);
+  }catch(err){
+    showMsg('#saveMsg','Download semua foto gagal • '+String(err?.message||err)+' • foto lokal tetap aman.',true);
+  }finally{
+    setButton('#downloadAllQrisBtn',false,'DOWNLOAD SEMUA FOTO QRIS (.ZIP)');
+  }
+}
+function makeLocalQrisExportName(r,n){
+  if(r.driveFileName)return sanitizeZipFileName(r.driveFileName);
+  const spg=safeFilePart(r.namaUser||r.username||session?.namaUser||session?.username||'SPG');
+  const names=(r.items||[]).map(x=>{const p=products.find(p=>String(p.kodeProduk||'')===String(x.kodeProduk||''));return safeFilePart(p?.namaProduk||x.kodeProduk||'Produk');}).filter(Boolean);
+  const product=names.length?names.slice(0,2).join('+')+(names.length>2?`+${names.length-2}ITEM`:''):'QRIS';
+  const nominal='Rp'+Math.round(Number(r.totalValue||0));
+  const d=r.createdAt?new Date(r.createdAt):new Date(Number(r.clientTimestamp||Date.now()));
+  return sanitizeZipFileName(`${spg}__${product}__${nominal}__${jakartaTimeKey(d)}__${safeFilePart(r.orderId||r.photoId||n)}.jpg`);
+}
+function safeFilePart(v){return String(v||'').trim().replace(/[\\/:*?"<>|#%{}\[\]~]+/g,'-').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-+|-+$/g,'').slice(0,65)||'NA';}
+function sanitizeZipFileName(v){let s=String(v||'QRIS.jpg').replace(/[\\:*?"<>|]+/g,'-').replace(/^\/+/, '').slice(0,180);return /\.jpe?g$/i.test(s)?s:s+'.jpg';}
+function uniqueZipFileName(name,used){let c=name,n=2;while(used.has(c)){c=name.replace(/(\.[^.]+)$/,`_${n}$1`);n++;}used.add(c);return c;}
+function csvCell(v){return '"'+String(v??'').replaceAll('"','""')+'"';}
+
+/* ZIP STORE builder: JPEG tidak dikompres ulang. */
+async function createStoredZip(entries){
+  const chunks=[],central=[],enc=new TextEncoder();let offset=0;
+  for(const e of entries){
+    const nb=enc.encode(String(e.name)),size=Number(e.blob.size||0),crc=crc32(new Uint8Array(await e.blob.arrayBuffer())),dos=zipDosDateTime(e.date||new Date());
+    const local=new Uint8Array(30+nb.length),lv=new DataView(local.buffer);
+    lv.setUint32(0,0x04034b50,true);lv.setUint16(4,20,true);lv.setUint16(6,0x0800,true);lv.setUint16(8,0,true);lv.setUint16(10,dos.time,true);lv.setUint16(12,dos.date,true);lv.setUint32(14,crc,true);lv.setUint32(18,size,true);lv.setUint32(22,size,true);lv.setUint16(26,nb.length,true);lv.setUint16(28,0,true);local.set(nb,30);chunks.push(local,e.blob);
+    const ch=new Uint8Array(46+nb.length),cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);cv.setUint16(12,dos.time,true);cv.setUint16(14,dos.date,true);cv.setUint32(16,crc,true);cv.setUint32(20,size,true);cv.setUint32(24,size,true);cv.setUint16(28,nb.length,true);cv.setUint16(30,0,true);cv.setUint16(32,0,true);cv.setUint16(34,0,true);cv.setUint16(36,0,true);cv.setUint32(38,0,true);cv.setUint32(42,offset,true);ch.set(nb,46);central.push(ch);offset+=local.length+size;
+  }
+  const centralOffset=offset,centralSize=central.reduce((s,x)=>s+x.length,0);chunks.push(...central);
+  const eocd=new Uint8Array(22),v=new DataView(eocd.buffer);v.setUint32(0,0x06054b50,true);v.setUint16(4,0,true);v.setUint16(6,0,true);v.setUint16(8,entries.length,true);v.setUint16(10,entries.length,true);v.setUint32(12,centralSize,true);v.setUint32(16,centralOffset,true);v.setUint16(20,0,true);chunks.push(eocd);
+  return new Blob(chunks,{type:'application/zip'});
+}
+let CRC32_TABLE=null;
+function crc32(bytes){
+  if(!CRC32_TABLE){CRC32_TABLE=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;CRC32_TABLE[n]=c>>>0;}}
+  let crc=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)crc=CRC32_TABLE[(crc^bytes[i])&0xFF]^(crc>>>8);return (crc^0xFFFFFFFF)>>>0;
+}
+function zipDosDateTime(v){const d=v instanceof Date?v:new Date(v),y=Math.max(1980,d.getFullYear());return{time:((d.getHours()<<11)|(d.getMinutes()<<5)|Math.floor(d.getSeconds()/2))&0xFFFF,date:(((y-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF};}
+async function downloadBlobToDevice(blob,name){const url=URL.createObjectURL(blob);try{const a=document.createElement('a');a.href=url;a.download=name;a.rel='noopener';a.style.display='none';document.body.appendChild(a);a.click();a.remove();}finally{setTimeout(()=>URL.revokeObjectURL(url),15000);}}
+
+/* =========================================================
+   ADD-ON V6.1 — FILTER PENJUALAN PER TANGGAL
+   ========================================================= */
+function ensureSalesDateFilterDefault(){const el=$('#salesDateFilter');if(el&&!el.value)el.value=jakartaDateKey(Date.now());}
+function jakartaDateKey(v){const d=v instanceof Date?v:new Date(v),parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d),m=Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return `${m.year}-${m.month}-${m.day}`;}
+function jakartaTimeKey(v){const d=v instanceof Date?v:new Date(v),parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Jakarta',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(d),m=Object.fromEntries(parts.filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));return `${m.hour}-${m.minute}-${m.second}`;}
+function jakartaTimestampText(v){const d=v instanceof Date?v:new Date(v);return `${jakartaDateKey(d)} ${jakartaTimeKey(d).replaceAll('-',':')}`;}
+
+async function refreshSalesByDate(preferNetwork=true){
+  if(!session||isLogisticRole()||!$('#salesDateFilter'))return;
+  ensureSalesDateFilterDefault();
+  const date=String($('#salesDateFilter').value||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){renderSalesDateError('Pilih tanggal yang valid.');return;}
+  setSalesDateLoading(true);
+  try{
+    const local=await getLocalSalesRowsByDate(session.username,date),cacheKey=`salesDate:v1:${String(session.username||'').toLowerCase()}:${date}`;
+    let backend=await metaGet(cacheKey),state=backend?'CACHE BACKEND':'BELUM DIMUAT';
+    if(preferNetwork&&navigator.onLine){
+      try{const token=await metaGet(TOKEN_KEY);backend=await KtdBridge.call('getMySalesByDate',{token,date});await metaSet(cacheKey,backend);state='LIVE BACKEND';}
+      catch(err){console.warn('Filter tanggal backend gagal:',err);state=backend?'CACHE BACKEND':'BACKEND TIDAK TERSEDIA';}
+    }else if(!navigator.onLine)state=backend?'CACHE BACKEND • OFFLINE':'OFFLINE • BELUM ADA CACHE BACKEND';
+    renderSalesDateRows(date,mergeSalesDateRows(backend?.rows||[],local),state);
+  }catch(err){renderSalesDateError(String(err?.message||err));}
+  finally{setSalesDateLoading(false);}
+}
+async function getLocalSalesRowsByDate(username,date){
+  const u=String(username||'').toLowerCase(),rows=await queueAll();
+  return rows.filter(r=>String(r.ownerUsername||'').toLowerCase()===u&&jakartaDateKey(Number(r.clientTimestamp??r.createdAt??0))===date).map(r=>{
+    const p=products.find(p=>String(p.kodeProduk||'')===String(r.kodeProduk||'')),qty=Number(r.qty||0),price=Number(r.harga??p?.harga??0),t=Number(r.clientTimestamp??r.createdAt??Date.now());
+    return{idTransaksi:String(r.idTransaksi||''),idPesanan:String(r.idPesanan||''),timestamp:jakartaTimestampText(t),kodeProduk:String(r.kodeProduk||''),namaProduk:String(r.namaProduk||p?.namaProduk||r.kodeProduk||''),qty,satuan:String(r.satuan||p?.satuan||''),value:qty*price,payment:String(r.metodePembayaran||'').toUpperCase()==='QRIS'?'QRIS':'Cash',buktiPembayaran:String(r.buktiPembayaran||''),keterangan:String(r.keterangan||''),lokasi:String(r.lokasi||session?.lokasi||''),event:String(r.event||session?.event||''),source:'LOCAL',syncStatus:String(r.syncStatus||'PENDING')};
+  });
+}
+function mergeSalesDateRows(backend,local){
+  const m=new Map();(backend||[]).forEach(r=>{const k=String(r.idTransaksi||'');if(k)m.set(k,{...r,source:'BACKEND',syncStatus:'SYNCED'});});(local||[]).forEach(r=>{const k=String(r.idTransaksi||'');if(k&&!m.has(k))m.set(k,r);});return[...m.values()].sort((a,b)=>String(b.timestamp||'').localeCompare(String(a.timestamp||'')));
+}
+function renderSalesDateRows(date,rows,state){
+  const s={qty:0,value:0,cash:0,qris:0,backend:0,local:0};rows.forEach(r=>{const q=Number(r.qty||0),v=Number(r.value||0);s.qty+=q;s.value+=v;if(String(r.payment||'').toUpperCase()==='QRIS')s.qris+=v;else s.cash+=v;if(r.source==='BACKEND')s.backend++;else s.local++;});
+  $('#salesDateQty').textContent=formatNumber(s.qty);$('#salesDateValue').textContent=money(s.value);$('#salesDateCash').textContent=money(s.cash);$('#salesDateQris').textContent=money(s.qris);$('#salesDateSource').textContent=`${formatNumber(s.backend)} backend • ${formatNumber(s.local)} lokal`;$('#salesDateStatus').textContent=`${date} • ${state} • ${formatNumber(rows.length)} baris penjualan`;$('#salesDateStatus').classList.remove('error');
+  const list=$('#salesDateList');if(!rows.length){list.innerHTML='<div class="empty-state">Tidak ada penjualan pada tanggal ini.</div>';return;}
+  list.innerHTML=rows.map(r=>{const cls=r.source==='BACKEND'?'backend':'local',txt=r.source==='BACKEND'?'BACKEND':(r.syncStatus||'LOCAL');return `<div class="sales-date-row"><div class="sales-date-main"><div class="sales-date-title"><b>${esc(r.namaProduk||r.kodeProduk)}</b><span class="sales-source ${cls}">${esc(txt)}</span></div><small>${esc(r.timestamp||'')} • ${esc(r.lokasi||'')}</small><small>Order ${esc(r.idPesanan||'-')} • ${esc(r.payment||'')}</small>${r.keterangan?`<small>${esc(r.keterangan)}</small>`:''}</div><div class="sales-date-number"><b>${formatNumber(r.qty)} ${esc(r.satuan||'')}</b><strong>${money(r.value)}</strong></div></div>`;}).join('');
+}
+function renderSalesDateError(msg){$('#salesDateStatus').textContent=msg||'Gagal memuat data tanggal.';$('#salesDateStatus').classList.add('error');}
+function setSalesDateLoading(on){setButton('#applySalesDateBtn',on,on?'MEMUAT...':'TAMPILKAN');}
 
 
 /* =========================================================

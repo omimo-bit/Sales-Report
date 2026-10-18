@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktd-sales-full-v6-safe-push-payment-totals-20261017';
+const CACHE_NAME = 'ktd-sales-v6-1-addon-qris-bulk-date-filter-20261018';
 const APP_SHELL = [
   './','./index.html','./styles.css','./config.js','./bridge-client.js','./app.js',
   './manifest.webmanifest','./logo.webp','./icon-192.png','./icon-512.png'

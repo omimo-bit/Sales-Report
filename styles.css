@@ -56,3 +56,17 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 
 /* V6 SAFE PUSH + PAYMENT TOTALS */
 .btn-force-push{width:100%;min-height:49px;border:1px solid #E2C300;border-radius:13px;background:var(--yellow);color:#111;font-weight:900;margin-top:8px;padding:10px 12px}.btn-force-push:disabled{opacity:.58;cursor:wait}.push-pending-note{margin-top:7px;font-size:9px;line-height:1.45;color:var(--muted);text-align:center}.grand-totals .payment-total.cash{background:#fff;border-color:var(--line)}.grand-totals .payment-total.qris{background:var(--yellow-soft);border-color:#F1DE64}.payment-total-hint{margin:-5px 1px 14px;font-size:9px;line-height:1.45;color:var(--muted);text-align:center}
+
+/* =========================================================
+   ADD-ON V6.1 — QRIS BULK DOWNLOAD + SALES DATE FILTER
+   ========================================================= */
+.btn-download-all-qris{width:100%;min-height:46px;margin:11px 0 8px;padding:10px 12px;border:1px solid #E2C300;border-radius:12px;background:var(--yellow);color:#111;font-size:11px;font-weight:900}
+.btn-download-all-qris:disabled{opacity:.58;cursor:wait}
+.bulk-photo-note{margin:0 2px 10px;color:var(--muted);font-size:9px;line-height:1.45;text-align:center}
+.sales-date-panel{margin-top:12px}
+.sales-date-controls{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end;margin-top:12px}
+.sales-date-controls .top-label{margin-top:0}.sales-date-controls input[type="date"]{height:46px}.sales-date-controls .date-apply{width:auto;min-width:100px;height:46px;margin:0;padding:0 14px}.sales-date-controls .date-today{min-height:46px}
+.sales-date-status{min-height:17px;margin:10px 0 8px;font-size:10px;color:var(--muted);text-align:center;line-height:1.4}.sales-date-status.error{color:var(--danger);font-weight:700}
+.sales-date-totals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.sales-date-totals>div{padding:10px 11px;border:1px solid var(--line);border-radius:12px;background:#fff}.sales-date-totals>div:nth-child(3),.sales-date-totals>div:nth-child(4){background:var(--yellow-soft);border-color:#F1DE64}.sales-date-totals span{display:block;color:var(--muted);font-size:9px;font-weight:800}.sales-date-totals strong{display:block;margin-top:4px;font-size:14px}
+.sales-date-source{margin:9px 2px;color:var(--muted);font-size:9px;text-align:center}.sales-date-list{display:grid;gap:7px;margin-top:9px}.sales-date-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:12px;background:#fff}.sales-date-title{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.sales-date-title b{font-size:11px}.sales-date-main small{display:block;margin-top:3px;color:var(--muted);font-size:9px;line-height:1.35}.sales-date-number{min-width:82px;text-align:right}.sales-date-number b{display:block;font-size:10px}.sales-date-number strong{display:block;margin-top:4px;font-size:11px}.sales-source{display:inline-flex;align-items:center;min-height:18px;padding:2px 6px;border-radius:999px;font-size:8px;font-weight:900}.sales-source.backend{background:#E8F7EE;color:#067647}.sales-source.local{background:var(--yellow-soft);color:#6D5900}
+@media(max-width:430px){.sales-date-controls{grid-template-columns:1fr 1fr}.sales-date-controls>div{grid-column:1/-1}.sales-date-controls .date-apply,.sales-date-controls .date-today{width:100%}}
