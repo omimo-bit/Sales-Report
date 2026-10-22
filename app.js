@@ -686,7 +686,7 @@ async function saveOrder() {
   $('#note').value = '';
   renderProducts();
   renderCart();
-  showMsg('#saveMsg', navigator.onLine ? 'Pesanan tersimpan lokal • sinkronisasi berjalan…' : 'Pesanan tersimpan OFFLINE di perangkat.', false);
+  showMsg('#saveMsg', navigator.onLine ? 'Pesanan tersimpan • sedang dikirim…' : 'Pesanan tersimpan di perangkat.', false);
   currentPhotoId = '';
   resetQrisPreview();
 
@@ -704,7 +704,7 @@ async function manualSyncButton() {
   const logistic = isLogisticRole();
   const selector = logistic ? '#logisticSyncBtn' : '#syncBtn';
   const messageSelector = logistic ? '#logisticSaveMsg' : '#saveMsg';
-  const idleLabel = 'SYNC SEKARANG';
+  const idleLabel = 'SYNC DATA';
 
   if (!navigator.onLine) {
     showMsg(messageSelector, 'Tidak dapat Sync saat offline. Data lokal tetap aman.', true);
@@ -719,26 +719,26 @@ async function manualSyncButton() {
   const btn = $(selector);
   btn.classList.add('sync-loading');
   setButton(selector, true, 'SYNCING...');
-  showMsg(messageSelector, logistic ? 'Mengirim data logistic…' : 'Memeriksa Map, foto QRIS, dan transaksi pending…', false);
+  showMsg(messageSelector, logistic ? 'Mengirim data tersimpan…' : 'Mengirim data tersimpan dan mencadangkan bukti pembayaran…', false);
 
   try {
     const result = await syncAll({manual:true, captureMap:true, allPhotos:true});
     if (result?.skipped) return;
 
     if (logistic) {
-      showMsg(messageSelector, 'SYNC Logistic selesai.', false);
+      showMsg(messageSelector, 'Sinkronisasi selesai.', false);
     } else {
       const sales = result?.sales || {};
       const photos = result?.photos || {};
       const repair = result?.repair || {};
       showMsg(
         messageSelector,
-        `SYNC selesai • ${formatNumber(sales.totalSynced || 0)} transaksi • ${formatNumber(photos.uploaded || 0)} foto Drive • ${formatNumber(repair.patched || 0)} link QRIS diperbaiki`,
+        `Sinkronisasi selesai • ${formatNumber(sales.totalSynced || 0)} transaksi • ${formatNumber(photos.uploaded || 0)} bukti pembayaran dicadangkan`,
         false
       );
     }
   } catch (err) {
-    showMsg(messageSelector, 'SYNC tertunda • ' + String(err?.message || err) + ' • data lokal tetap aman.', true);
+    showMsg(messageSelector, 'Pengiriman tertunda • data di perangkat tetap aman.', true);
   } finally {
     btn.classList.remove('sync-loading');
     setButton(selector, false, idleLabel);
@@ -1022,14 +1022,14 @@ async function resetSalesErrorsForUser(username){
 
 async function forcePushAllPending(){
   if(!session || isLogisticRole()) return;
-  if(!navigator.onLine){showMsg('#saveMsg','Tidak bisa PUSH saat offline. Data tetap aman di HP.',true);return;}
-  if(syncInProgress){showMsg('#saveMsg','Sync sedang berjalan. Tunggu sampai selesai lalu tekan PUSH lagi.',true);return;}
+  if(!navigator.onLine){showMsg('#saveMsg','Tidak bisa mengirim saat offline. Data tetap aman di perangkat.',true);return;}
+  if(syncInProgress){showMsg('#saveMsg','Sinkronisasi sedang berjalan. Tunggu sampai selesai lalu coba lagi.',true);return;}
 
   syncInProgress=true;
   updateNetworkState(true);
   const pushBtn = $('#pushPendingBtn');
   pushBtn.classList.add('sync-loading');
-  setButton('#pushPendingBtn',true,'MENGIRIM SEMUA DATA...');
+  setButton('#pushPendingBtn',true,'MENGIRIM DATA...');
 
   try{
     const beforePending=await queueCountForUser(session.username), beforeErrors=await queueErrorCountForUser(session.username);
@@ -1055,17 +1055,17 @@ async function forcePushAllPending(){
 
     const afterPending=await queueCountForUser(session.username), afterErrors=await queueErrorCountForUser(session.username);
     if(afterPending===0 && afterErrors===0){
-      showMsg('#saveMsg',`PUSH selesai • ${formatNumber(sales.totalSynced)} transaksi dikonfirmasi backend${photos.uploaded?` • ${formatNumber(photos.uploaded)} foto masuk Drive`:''}${repair.patched?` • ${formatNumber(repair.patched)} link QRIS diperbaiki`:''}`,false);
+      showMsg('#saveMsg',`Pengiriman selesai • ${formatNumber(sales.totalSynced)} transaksi${photos.uploaded?` • ${formatNumber(photos.uploaded)} bukti pembayaran dicadangkan`:''}`,false);
     }else{
-      showMsg('#saveMsg',`PUSH selesai sebagian • awal ${formatNumber(beforePending)} pending + ${formatNumber(beforeErrors)} error • berhasil ${formatNumber(sales.totalSynced)} • tersisa ${formatNumber(afterPending)} pending + ${formatNumber(afterErrors)} error. Data yang belum diterima backend tetap tersimpan di HP.`,true);
+      showMsg('#saveMsg',`Pengiriman selesai sebagian • berhasil ${formatNumber(sales.totalSynced)} • tersisa ${formatNumber(afterPending)} data menunggu + ${formatNumber(afterErrors)} perlu dikirim ulang. Data yang belum terkirim tetap tersimpan di perangkat.`,true);
     }
   }catch(err){
-    showMsg('#saveMsg','PUSH tertunda • '+String(err?.message||err)+' • data lokal tidak dihapus.',true);
+    showMsg('#saveMsg','Pengiriman tertunda. Data di perangkat tidak dihapus.',true);
   } finally {
     syncInProgress=false;
     updateNetworkState(false);
     pushBtn.classList.remove('sync-loading');
-    setButton('#pushPendingBtn',false,'PUSH SEMUA PENDING KE BACKEND');
+    setButton('#pushPendingBtn',false,'KIRIM DATA TERTUNDA');
     await updateMetrics();
   }
 }
@@ -1549,7 +1549,7 @@ async function saveLogisticMovement() {
   $('#logisticNote').value = '';
   renderLogisticProducts();
   renderLogisticCart();
-  showMsg('#logisticSaveMsg', navigator.onLine ? 'Movement tersimpan lokal • sinkronisasi berjalan…' : 'Movement tersimpan OFFLINE di perangkat.', false);
+  showMsg('#logisticSaveMsg', navigator.onLine ? 'Movement tersimpan • sedang dikirim…' : 'Movement tersimpan di perangkat.', false);
 
   await updateMetrics();
   await refreshLogisticSummary(false);
@@ -1727,17 +1727,19 @@ async function updateMetrics() {
 
   const off = await metaGet(OFFLINE_SINCE_KEY);
   const last = await metaGet(LAST_SYNC_KEY);
+  const online = navigator.onLine;
 
   if (isLogisticRole()) {
     const pending = await logisticPendingCountForUser(session.username);
     const errors = await logisticErrorCountForUser(session.username);
     const today = await logisticTodayCountForUser(session.username);
     $('#logisticPendingCount').textContent = String(pending);
-    $('#logisticPendingChip').textContent = `${pending} PENDING`;
+    $('#logisticPendingChip').textContent = `${pending} BELUM TERKIRIM`;
     $('#logisticErrorCount').textContent = String(errors);
     $('#logisticTodayCount').textContent = String(today);
     $('#logisticOfflineDuration').textContent = off ? formatDuration(Date.now() - new Date(off).getTime()) : '0m';
     $('#logisticLastSyncAt').textContent = last ? formatDateTime(last) : 'Belum pernah';
+    renderLogisticSyncStatus(pending, errors, online, syncInProgress);
     return;
   }
 
@@ -1745,11 +1747,67 @@ async function updateMetrics() {
   const errors = await queueErrorCountForUser(session.username);
   const photos = await photoPendingCountForUser(session.username);
   $('#pendingCount').textContent = String(pending);
-  $('#pendingChip').textContent = `${pending} PENDING`;
+  $('#pendingChip').textContent = `${pending} BELUM TERKIRIM`;
   $('#photoPendingCount').textContent = String(photos);
   $('#errorCount').textContent = String(errors);
   $('#offlineDuration').textContent = off ? formatDuration(Date.now() - new Date(off).getTime()) : '0m';
   $('#lastSyncAt').textContent = last ? formatDateTime(last) : 'Belum pernah';
+  renderSalesSyncStatus(pending, errors, photos, online, syncInProgress);
+}
+
+function renderSalesSyncStatus(pending, errors, photos, online, syncing) {
+  const status = $('#syncStatus');
+  const headlineEls = ['#syncHeadlineCard'].map($).filter(Boolean);
+  const detailEls = ['#syncDetailCard'].map($).filter(Boolean);
+  if (!headlineEls.length) return;
+
+  let headline = 'Semua data tersimpan';
+  let detail = 'Sinkronisasi otomatis aktif.';
+  let state = 'ready';
+
+  if (syncing) {
+    headline = 'Menyinkronkan data…';
+    detail = 'Jangan tutup aplikasi sampai proses selesai.';
+    state = 'syncing';
+  } else if (!online) {
+    headline = 'Offline — data tetap tersimpan';
+    detail = pending || photos ? `${formatNumber(pending)} data dan ${formatNumber(photos)} bukti menunggu koneksi.` : 'Data baru akan dikirim saat koneksi tersedia.';
+    state = 'offline';
+  } else if (errors) {
+    headline = `${formatNumber(errors)} data perlu dikirim ulang`;
+    detail = pending ? `${formatNumber(pending)} data masih menunggu pengiriman.` : 'Buka detail sinkronisasi untuk mencoba lagi.';
+    state = 'attention';
+  } else if (pending || photos) {
+    headline = `${formatNumber(pending)} data menunggu pengiriman`;
+    detail = photos ? `${formatNumber(photos)} bukti pembayaran juga menunggu backup.` : 'Akan dikirim otomatis saat koneksi siap.';
+    state = 'attention';
+  }
+
+  headlineEls.forEach(el => { el.textContent = headline; });
+  detailEls.forEach(el => { el.textContent = detail; });
+  if (status) {
+    status.classList.remove('syncing','attention','offline');
+    if (state !== 'ready') status.classList.add(state);
+  }
+}
+
+function renderLogisticSyncStatus(pending, errors, online, syncing) {
+  const status = $('#logisticSyncStatus');
+  const headline = $('#logisticSyncHeadline');
+  const detail = $('#logisticSyncDetail');
+  if (!status || !headline || !detail) return;
+
+  let h = 'Semua data tersimpan';
+  let d = 'Sinkronisasi otomatis aktif.';
+  let state = 'ready';
+  if (syncing) { h = 'Menyinkronkan data…'; d = 'Jangan tutup aplikasi sampai proses selesai.'; state = 'syncing'; }
+  else if (!online) { h = 'Offline — data tetap tersimpan'; d = pending ? `${formatNumber(pending)} movement menunggu koneksi.` : 'Movement baru akan dikirim saat koneksi tersedia.'; state = 'offline'; }
+  else if (errors) { h = `${formatNumber(errors)} movement perlu dikirim ulang`; d = pending ? `${formatNumber(pending)} movement masih menunggu pengiriman.` : 'Buka detail status untuk mencoba lagi.'; state = 'attention'; }
+  else if (pending) { h = `${formatNumber(pending)} movement menunggu pengiriman`; d = 'Akan dikirim otomatis saat koneksi siap.'; state = 'attention'; }
+  headline.textContent = h;
+  detail.textContent = d;
+  status.classList.remove('syncing','attention','offline');
+  if (state !== 'ready') status.classList.add(state);
 }
 
 function updateNetworkState(forceSyncing) {
@@ -1758,6 +1816,8 @@ function updateNetworkState(forceSyncing) {
   const text = forceSyncing || syncInProgress ? 'SYNCING...' : (online ? 'ONLINE' : 'OFFLINE');
   if ($('#netStatus')) $('#netStatus').textContent = text;
   if ($('#logisticNetStatus')) $('#logisticNetStatus').textContent = text;
+  if ($('#syncStatus') && (forceSyncing || syncInProgress)) $('#syncStatus').classList.add('syncing');
+  if ($('#logisticSyncStatus') && (forceSyncing || syncInProgress)) $('#logisticSyncStatus').classList.add('syncing');
 }
 
 function openDb() {

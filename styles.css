@@ -79,3 +79,144 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 .btn-dark.sync-loading::before,.btn-force-push.sync-loading::before{content:"";width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ktd-sync-spin .7s linear infinite;flex:0 0 auto}
 @keyframes ktd-sync-spin{to{transform:rotate(360deg)}}
 .sales-date-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}.sales-date-links a,.sales-date-links span{display:inline-flex;align-items:center;min-height:20px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);font-size:8px;font-weight:900;text-decoration:none;color:#111;background:#fff}.sales-date-links a{border-color:#E2C300;background:var(--yellow-soft)}
+
+/* =========================================================
+   V7 — UX CONSOLIDATION / PROFESSIONAL BRAND LOCKUP
+   Visual-only refinement. IndexedDB, backend, queues and IDs unchanged.
+   ========================================================= */
+:root{
+  --bg:#F7F7F3;
+  --line:#E2E2DA;
+  --muted:#707069;
+  --black:#161616;
+}
+
+.app-shell{max-width:600px;padding:18px 14px 112px}
+.card{border-radius:18px;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.login-card{max-width:520px;margin:5vh auto 0;padding:24px 22px 22px}
+.login-brand{gap:10px;margin-bottom:24px}
+.login-brand .brand-mark{width:136px;height:136px;margin-bottom:0}
+.login-brand .brand-mark img{width:132px;height:132px;object-fit:contain}
+.brand-overline{display:block;font-size:9px;font-weight:900;letter-spacing:1.8px;color:#8A8A82;margin-bottom:5px}
+.brand-centered h1{font-size:24px;letter-spacing:-.4px}
+.brand-centered p{font-size:12px;margin-top:6px}
+.login-tools{margin-top:13px;border-top:1px solid var(--line);padding-top:10px}
+.login-tools summary{list-style:none;cursor:pointer;text-align:center;color:var(--muted);font-size:10px;font-weight:800;padding:4px}
+.login-tools summary::-webkit-details-marker{display:none}
+.login-tools summary::before{content:'+';display:inline-block;margin-right:5px;font-size:13px;line-height:1;transition:transform .18s ease}
+.login-tools[open] summary::before{transform:rotate(45deg)}
+.login-tools .btn-secondary{margin-top:9px}
+
+.app-brandline{justify-content:flex-start;gap:12px;margin:2px 4px 19px;min-height:58px}
+.app-brand-mark{width:56px;height:56px;display:grid;place-items:center;flex:0 0 56px}
+.app-brand-mark img{display:block;width:56px;height:56px;object-fit:contain}
+.app-brand-copy{min-width:0;padding-top:1px}
+.app-brand-copy strong{display:block;font-size:15px;line-height:1.15;letter-spacing:-.15px}
+.app-brand-copy span{display:block;margin-top:4px;font-size:10px;line-height:1.25;color:var(--muted);letter-spacing:.35px}
+
+.header{margin:0 3px 11px}
+.header h2{font-size:21px;letter-spacing:-.3px}
+.header p{font-size:11px}
+.btn-text{border-color:transparent;background:transparent;padding:8px 4px;color:#555;font-size:10px}
+.btn-text:hover{color:#111}
+.status-row{gap:6px;margin:0 3px 7px}
+.chip{padding:6px 9px;border-radius:9px;font-size:9px;letter-spacing:.25px;background:#fff}
+
+.sync-status{display:flex;align-items:center;gap:9px;margin:0 3px 14px;padding:0 0 11px;border-bottom:1px solid var(--line)}
+.sync-status>div{min-width:0}
+.sync-status strong{display:block;font-size:11px;line-height:1.25}
+.sync-status span:not(.sync-dot){display:block;margin-top:2px;font-size:9px;color:var(--muted);line-height:1.35}
+.sync-dot{display:block;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#067647;box-shadow:0 0 0 3px rgba(6,118,71,.10)}
+.sync-status.syncing .sync-dot{background:#C8AA00;box-shadow:0 0 0 3px rgba(200,170,0,.12)}
+.sync-status.attention .sync-dot{background:#B42318;box-shadow:0 0 0 3px rgba(180,35,24,.10)}
+.sync-status.offline .sync-dot{background:#77776F;box-shadow:0 0 0 3px rgba(119,119,111,.10)}
+
+.panel{padding:16px;margin-bottom:10px}
+.compact{padding:14px 16px}
+.section-title{font-size:11px;letter-spacing:.15px}
+.hint{font-size:10px}
+.product-hint{margin-bottom:10px}
+.category-tab{padding:8px 11px;font-size:10px}
+.product-list{gap:7px}
+.product-card{min-height:108px;border-radius:13px;padding:10px}
+.product-card b{font-size:11px}
+.product-card .price{font-size:10px}
+.product-controls{margin-top:8px}
+.product-controls button{height:32px;border-radius:9px}
+.cart-row{padding:9px 0}
+.payment{height:46px;border-radius:11px;font-size:11px}
+.qris-section{padding:11px;border-radius:12px}
+.qris-copy b{font-size:10px}
+.qris-copy span{font-size:9px}
+.btn-camera{height:46px;border-radius:11px;font-size:11px}
+.checkout{bottom:8px;border-radius:16px;padding:11px;grid-template-columns:1fr 132px;gap:10px}
+.checkout strong{font-size:20px}
+.checkout .save{height:50px}
+
+.sync-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:13px 14px;margin:12px 0 11px}
+.sync-panel-main{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:12px;align-items:center}
+.sync-state-copy{min-width:0}
+.sync-kicker{display:block;font-size:8px;letter-spacing:1.3px;font-weight:900;color:#8A8A82;margin-bottom:4px}
+.sync-state-copy strong{display:block;font-size:12px;line-height:1.25}
+.sync-state-copy>span:last-child{display:block;margin-top:3px;font-size:9px;color:var(--muted);line-height:1.35}
+.btn-dark{height:46px;margin:0;border-radius:11px;font-size:10px;letter-spacing:.2px}
+.sync-details{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+.sync-details summary{list-style:none;cursor:pointer;color:#555;font-size:9px;font-weight:900;text-align:center;padding:2px}
+.sync-details summary::-webkit-details-marker{display:none}
+.sync-details summary::after{content:'⌄';display:inline-block;margin-left:5px;transition:transform .18s ease}
+.sync-details[open] summary::after{transform:rotate(180deg)}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0}
+.metric-grid>div{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#FCFCFA}
+.metric-grid>div span{display:block;font-size:8px;color:var(--muted);line-height:1.2}
+.metric-grid>div strong{display:block;margin-top:3px;font-size:11px}
+.metric-grid .metric-grid-wide{grid-column:1/-1}
+.btn-force-push{min-height:43px;margin-top:2px;border-radius:10px;font-size:10px;background:#fff;border-color:#D8BE00}
+.push-pending-note{font-size:8px;margin-top:6px}
+
+.sales-summary{margin-top:0}
+.grand-totals{gap:7px;margin:12px 0}
+.grand-totals>div{border-radius:12px;padding:10px}
+.grand-totals strong{font-size:16px}
+.summary-block{margin-top:14px}
+.summary-table{border-radius:11px}
+.summary-row{padding:9px 10px}
+
+.utility-details{margin:11px 0;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}
+.utility-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;cursor:pointer;padding:14px 15px;font-size:11px;font-weight:900}
+.utility-details>summary::-webkit-details-marker{display:none}
+.utility-details>summary::after{content:'+';font-size:16px;font-weight:400;color:#777;line-height:1}
+.utility-details[open]>summary::after{content:'−'}
+.utility-details>summary small{display:block;margin-top:3px;font-size:8px;font-weight:500;color:var(--muted)}
+.utility-details>.card{border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;margin:0}
+.utility-details>.card+ .card{border-top:1px solid var(--line)}
+.sales-date-panel,.vault-panel{margin-top:0}
+
+.btn-download-all-qris{min-height:43px;border-radius:10px;font-size:10px}
+.bulk-photo-note{font-size:8px}
+.sales-date-controls{gap:7px}
+.sales-date-controls input[type=date]{height:44px}
+.sales-date-controls .date-apply{height:44px;min-width:96px}
+.sales-date-controls .date-today{min-height:44px}
+.sales-date-totals{gap:7px}
+.sales-date-totals>div{border-radius:10px;padding:9px 10px}
+
+/* Logistic uses the same visual system, while keeping its denser workflow. */
+.logistic-form-grid{gap:8px}
+.logistic-stock-banner{margin:11px 0 9px;padding:11px 12px;border-radius:12px}
+.logistic-stock-banner strong{font-size:21px}
+.logistic-history{border-radius:11px}
+.logistic-history-row{padding:10px}
+
+@media(max-width:430px){
+  .app-shell{padding-left:11px;padding-right:11px}
+  .login-card{padding:22px 18px 20px}
+  .sync-panel-main{grid-template-columns:1fr}
+  .sync-panel-main .btn-dark{width:100%}
+}
+
+@media(min-width:601px){
+  .app-shell{padding-top:26px}
+}
+#logisticSyncStatus.syncing .sync-dot{background:#C8AA00;box-shadow:0 0 0 3px rgba(200,170,0,.12)}
+#logisticSyncStatus.attention .sync-dot{background:#B42318;box-shadow:0 0 0 3px rgba(180,35,24,.10)}
+#logisticSyncStatus.offline .sync-dot{background:#77776F;box-shadow:0 0 0 3px rgba(119,119,111,.10)}

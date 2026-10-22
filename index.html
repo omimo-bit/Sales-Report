@@ -20,8 +20,9 @@
       <div class="brand-centered login-brand">
         <div class="brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>
         <div class="brand-copy">
-          <h1>Event Operations</h1>
-          <p>Sales & Logistic • Kratingdaeng Music Festival</p>
+          <span class="brand-overline">EVENT OPERATIONS</span>
+          <h1>Sales & Logistic</h1>
+          <p>Kratingdaeng Music Festival</p>
         </div>
       </div>
 
@@ -35,15 +36,18 @@
       <select id="venue"><option value="">Pilih lokasi venue</option></select>
 
       <button id="loginBtn" class="btn-primary" type="button">MASUK</button>
-      <button id="testConnectionBtn" class="btn-secondary" type="button">TES KONEKSI</button>
-      <div id="backendStatus" class="backend-status">Backend belum diperiksa.</div>
+      <details class="login-tools">
+        <summary>Masalah koneksi?</summary>
+        <button id="testConnectionBtn" class="btn-secondary" type="button">TES KONEKSI</button>
+        <div id="backendStatus" class="backend-status">Backend belum diperiksa.</div>
+      </details>
       <div id="loginMsg" class="message"></div>
     </section>
 
     <section id="salesView" class="hidden">
       <div class="app-brandline">
-        <img src="./logo.webp" alt="DOTSIXTWOO">
-        <div><strong>Sales Input</strong><span>Kratingdaeng Music Festival</span></div>
+        <div class="app-brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>
+        <div class="app-brand-copy"><strong>Sales Input</strong><span>Synchronize Festival</span></div>
       </div>
 
       <header class="header">
@@ -57,19 +61,19 @@
 
       <div class="status-row">
         <span id="netStatus" class="chip">ONLINE</span>
-        <span id="pendingChip" class="chip">0 PENDING</span>
+        <span id="pendingChip" class="chip">0 BELUM TERKIRIM</span>
       </div>
 
       <section class="card panel">
-        <div class="section-title">Pilih Multi Item</div>
-        <div class="hint product-hint">Tekan + pada beberapa produk. Semua item akan menjadi satu pesanan.</div>
+        <div class="section-title">Pilih produk</div>
+        <div class="hint product-hint">Tambahkan satu atau beberapa produk ke pesanan.</div>
         <div id="productTabs" class="category-tabs"></div>
         <div id="productList" class="product-list"></div>
       </section>
 
       <section class="card panel compact">
         <div class="row between center">
-          <div><div class="section-title no-margin">Keranjang</div><div id="cartInfo" class="hint">Belum ada item</div></div>
+          <div><div class="section-title no-margin">Pesanan</div><div id="cartInfo" class="hint">Belum ada item</div></div>
           <button id="clearCartBtn" class="btn-small" type="button">Kosongkan</button>
         </div>
         <div id="cartList" class="cart-list"></div>
@@ -83,7 +87,7 @@
         </div>
 
         <div id="qrisSection" class="qris-section hidden">
-          <div class="qris-copy"><b>BUKTI QRIS WAJIB</b><span>Ambil foto baru dengan kamera perangkat. Foto diamankan lokal lalu dibackup otomatis ke Google Drive.</span></div>
+          <div class="qris-copy"><b>BUKTI PEMBAYARAN</b><span>Ambil foto baru dengan kamera. Foto tersimpan di perangkat dan akan dicadangkan saat koneksi tersedia.</span></div>
           <input id="qrisCameraInput" class="camera-input" type="file" accept="image/*" capture="environment">
           <button id="qrisCameraBtn" class="btn-camera" type="button">AMBIL FOTO QRIS</button>
           <img id="qrisPreview" class="qris-preview hidden" alt="Preview QRIS">
@@ -93,8 +97,8 @@
       </section>
 
       <section class="card panel compact">
-        <label class="top-label">KETERANGAN <span>(OPSIONAL)</span></label>
-        <input id="note" maxlength="250" placeholder="Catatan transaksi">
+        <label class="top-label">CATATAN <span>(OPSIONAL)</span></label>
+        <input id="note" maxlength="250" placeholder="Tambahkan catatan bila perlu">
       </section>
 
       <section class="checkout">
@@ -103,17 +107,27 @@
       </section>
       <div id="saveMsg" class="message"></div>
 
-      <section class="card summary-panel">
-        <div class="metric-row"><span>Pending Transaksi</span><strong id="pendingCount">0</strong></div>
-        <div class="metric-row"><span>Foto Menunggu Drive</span><strong id="photoPendingCount">0</strong></div>
-        <div class="metric-row"><span>Error Sync</span><strong id="errorCount">0</strong></div>
-        <div class="offline-metrics">
-          <div><span>Offline</span><strong id="offlineDuration">0m</strong></div>
-          <div><span>Last Sync</span><strong id="lastSyncAt">Belum pernah</strong></div>
+      <section class="sync-panel">
+        <div class="sync-panel-main">
+          <div class="sync-state-copy">
+            <span class="sync-kicker">DATA</span>
+            <strong id="syncHeadlineCard">Semua data tersimpan</strong>
+            <span id="syncDetailCard">Data akan dikirim otomatis saat koneksi tersedia.</span>
+          </div>
+          <button id="syncBtn" class="btn-dark" type="button">SYNC DATA</button>
         </div>
-        <button id="syncBtn" class="btn-dark" type="button">SYNC SEKARANG</button>
-        <button id="pushPendingBtn" class="btn-force-push" type="button">PUSH SEMUA PENDING KE BACKEND</button>
-        <div class="push-pending-note">Data lokal hanya dihapus setelah backend mengonfirmasi accepted/duplicate.</div>
+        <details class="sync-details">
+          <summary>Detail sinkronisasi</summary>
+          <div class="metric-grid">
+            <div><span>Belum terkirim</span><strong id="pendingCount">0</strong></div>
+            <div><span>Foto menunggu backup</span><strong id="photoPendingCount">0</strong></div>
+            <div><span>Perlu dikirim ulang</span><strong id="errorCount">0</strong></div>
+            <div><span>Offline</span><strong id="offlineDuration">0m</strong></div>
+            <div class="metric-grid-wide"><span>Sinkronisasi terakhir</span><strong id="lastSyncAt">Belum pernah</strong></div>
+          </div>
+          <button id="pushPendingBtn" class="btn-force-push" type="button">KIRIM DATA TERTUNDA</button>
+          <div class="push-pending-note">Data di perangkat tidak dihapus sampai sistem menerima konfirmasi.</div>
+        </details>
       </section>
 
       <section class="card panel sales-summary">
@@ -132,38 +146,41 @@
         <div class="summary-block"><div class="summary-subtitle">PER LOKASI</div><div id="locationSummary" class="summary-table empty-state">Belum ada penjualan.</div></div>
       </section>
 
-      <section class="card panel sales-date-panel">
-        <div class="summary-head"><div><div class="section-title no-margin">Penjualan per Tanggal</div><div class="hint">Gabungan Report Sales backend + transaksi lokal yang masih tersimpan di HP ini.</div></div></div>
-        <div class="sales-date-controls">
-          <div><label class="top-label" for="salesDateFilter">TANGGAL PENJUALAN</label><input id="salesDateFilter" type="date"></div>
-          <button id="applySalesDateBtn" class="btn-primary date-apply" type="button">TAMPILKAN</button>
-          <button id="todaySalesDateBtn" class="btn-small date-today" type="button">HARI INI</button>
-        </div>
-        <div id="salesDateStatus" class="sales-date-status">Pilih tanggal untuk melihat data.</div>
-        <div class="sales-date-totals">
-          <div><span>Total Qty</span><strong id="salesDateQty">0</strong></div><div><span>Total Value</span><strong id="salesDateValue">Rp0</strong></div>
-          <div><span>CASH</span><strong id="salesDateCash">Rp0</strong></div><div><span>QRIS</span><strong id="salesDateQris">Rp0</strong></div>
-        </div>
-        <div class="sales-date-source">Sumber: <b id="salesDateSource">0 backend • 0 lokal</b></div>
-        <div id="salesDateList" class="sales-date-list"></div>
-      </section>
+      <details class="utility-details">
+        <summary><span>Riwayat penjualan & bukti QRIS</span><small>Filter tanggal, backup foto, dan riwayat</small></summary>
+        <section class="card panel sales-date-panel">
+          <div class="summary-head"><div><div class="section-title no-margin">Penjualan per Tanggal</div><div class="hint">Gabungan data penjualan yang sudah terkirim dan yang masih tersimpan di perangkat.</div></div></div>
+          <div class="sales-date-controls">
+            <div><label class="top-label" for="salesDateFilter">TANGGAL PENJUALAN</label><input id="salesDateFilter" type="date"></div>
+            <button id="applySalesDateBtn" class="btn-primary date-apply" type="button">TAMPILKAN</button>
+            <button id="todaySalesDateBtn" class="btn-small date-today" type="button">HARI INI</button>
+          </div>
+          <div id="salesDateStatus" class="sales-date-status">Pilih tanggal untuk melihat data.</div>
+          <div class="sales-date-totals">
+            <div><span>Total Qty</span><strong id="salesDateQty">0</strong></div><div><span>Total Value</span><strong id="salesDateValue">Rp0</strong></div>
+            <div><span>CASH</span><strong id="salesDateCash">Rp0</strong></div><div><span>QRIS</span><strong id="salesDateQris">Rp0</strong></div>
+          </div>
+          <div class="sales-date-source">Sumber: <b id="salesDateSource">0 backend • 0 lokal</b></div>
+          <div id="salesDateList" class="sales-date-list"></div>
+        </section>
 
-      <section class="card panel vault-panel">
-        <div class="summary-head">
-          <div><div class="section-title no-margin">Vault Foto QRIS</div><div class="hint">Copy lokal tidak dihapus otomatis meskipun sudah masuk Drive.</div></div>
-          <span class="vault-count"><b id="photoVaultCount">0</b> foto</span>
-        </div>
-        <button id="downloadAllQrisBtn" class="btn-download-all-qris" type="button">DOWNLOAD SEMUA FOTO QRIS (.ZIP)</button>
-        <div class="bulk-photo-note">Mengunduh seluruh foto QRIS yang masih tersimpan di HP akun ini sekaligus. Foto di Vault tidak akan dihapus.</div>
-        <div id="storageStatus" class="storage-status">Memeriksa storage...</div>
-        <div id="photoVaultList" class="vault-list"></div>
-      </section>
+        <section class="card panel vault-panel">
+          <div class="summary-head">
+            <div><div class="section-title no-margin">Vault Foto QRIS</div><div class="hint">Salinan lokal tetap tersimpan meskipun backup online sudah berhasil.</div></div>
+            <span class="vault-count"><b id="photoVaultCount">0</b> foto</span>
+          </div>
+          <button id="downloadAllQrisBtn" class="btn-download-all-qris" type="button">DOWNLOAD SEMUA FOTO QRIS (.ZIP)</button>
+          <div class="bulk-photo-note">Foto di Vault tidak akan dihapus setelah diunduh.</div>
+          <div id="storageStatus" class="storage-status">Memeriksa storage...</div>
+          <div id="photoVaultList" class="vault-list"></div>
+        </section>
+      </details>
     </section>
 
     <section id="logisticsView" class="hidden">
       <div class="app-brandline">
-        <img src="./logo.webp" alt="DOTSIXTWOO">
-        <div><strong>Logistic Control</strong><span>Kratingdaeng Music Festival</span></div>
+        <div class="app-brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>
+        <div class="app-brand-copy"><strong>Logistic Control</strong><span>Synchronize Festival</span></div>
       </div>
 
       <header class="header">
@@ -178,11 +195,15 @@
       <div class="status-row">
         <span id="logisticNetStatus" class="chip">ONLINE</span>
         <span id="logisticRoleChip" class="chip">LOGISTIC</span>
-        <span id="logisticPendingChip" class="chip">0 PENDING</span>
+        <span id="logisticPendingChip" class="chip">0 BELUM TERKIRIM</span>
+      </div>
+      <div id="logisticSyncStatus" class="sync-status" aria-live="polite">
+        <span id="logisticSyncDot" class="sync-dot"></span>
+        <div><strong id="logisticSyncHeadline">Semua data tersimpan</strong><span id="logisticSyncDetail">Sinkronisasi otomatis aktif.</span></div>
       </div>
 
       <section class="card panel compact">
-        <div class="section-title">Aktivitas Logistic</div>
+        <div class="section-title">Aktivitas</div>
         <div class="logistic-form-grid">
           <div>
             <label class="top-label">JENIS AKTIVITAS</label>
@@ -202,8 +223,8 @@
       </section>
 
       <section class="card panel">
-        <div class="section-title">Pilih Produk / Consumable / Asset</div>
-        <div class="hint product-hint">Master berasal dari Data Produk + Data Logistic. Qty dapat diketik langsung atau memakai tombol − / +.</div>
+        <div class="section-title">Pilih item</div>
+        <div class="hint product-hint">Pilih produk, consumable, atau asset. Qty dapat diketik langsung atau memakai tombol − / +.</div>
         <div id="logisticProductTabs" class="category-tabs"></div>
         <div id="logisticProductList" class="product-list"></div>
       </section>
@@ -220,8 +241,8 @@
       </section>
 
       <section class="card panel compact">
-        <label class="top-label">KETERANGAN <span>(OPSIONAL)</span></label>
-        <input id="logisticNote" maxlength="250" placeholder="Contoh: stock dari truck 1 / shift sore / waste pecah">
+        <label class="top-label">CATATAN <span>(OPSIONAL)</span></label>
+        <input id="logisticNote" maxlength="250" placeholder="Tambahkan catatan bila perlu">
       </section>
 
       <section class="checkout logistic-checkout">
@@ -242,7 +263,7 @@
           <div><span>Offline</span><strong id="logisticOfflineDuration">0m</strong></div>
           <div><span>Last Sync</span><strong id="logisticLastSyncAt">Belum pernah</strong></div>
         </div>
-        <button id="logisticSyncBtn" class="btn-dark" type="button">SYNC LOGISTIC SEKARANG</button>
+        <button id="logisticSyncBtn" class="btn-dark" type="button">SYNC DATA</button>
       </section>
 
       <section class="card panel logistic-summary">
