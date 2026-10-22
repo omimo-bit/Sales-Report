@@ -11,6 +11,7 @@ const VENUE_CACHE_KEY = 'venueCache';
 const DEVICE_KEY = 'deviceId';
 const LAST_SYNC_KEY = 'lastSuccessfulSync';
 const OFFLINE_SINCE_KEY = 'offlineSince';
+const LAST_MAP_KEY = 'lastKnownMap';
 
 const STATIC_VENUES = [
   {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
@@ -100,7 +101,7 @@ function bindEvents() {
   $('#testConnectionBtn').addEventListener('click', () => checkBackend(true));
   $('#logoutBtn').addEventListener('click', logout);
   $('#saveBtn').addEventListener('click', saveOrder);
-  $('#syncBtn').addEventListener('click', syncAll);
+  $('#syncBtn').addEventListener('click', manualSyncButton);
   $('#pushPendingBtn').addEventListener('click', forcePushAllPending);
   $('#refreshSummaryBtn').addEventListener('click', () => refreshMySummary(true));
   $('#downloadAllQrisBtn').addEventListener('click', downloadAllQrisPhotos);
@@ -135,7 +136,7 @@ function bindEvents() {
 
   $('#logisticLogoutBtn').addEventListener('click', logout);
   $('#logisticSaveBtn').addEventListener('click', saveLogisticMovement);
-  $('#logisticSyncBtn').addEventListener('click', syncAll);
+  $('#logisticSyncBtn').addEventListener('click', manualSyncButton);
   $('#logisticRefreshBtn').addEventListener('click', () => refreshLogisticSummary(true));
   $('#logisticClearBtn').addEventListener('click', () => {
     logisticCart = {};
@@ -638,6 +639,11 @@ async function saveOrder() {
   const note = $('#note').value.trim();
   const totalValue = lines.reduce((sum, p) => sum + Number(cart[p.kodeProduk] || 0) * Number(p.harga || 0), 0);
 
+  // ADD-ON V6.2: simpan Map bersama transaksi lokal.
+  // Jika GPS belum tersedia, transaksi TETAP boleh disimpan; manual Sync/PUSH
+  // akan mencoba melengkapi Map lagi tanpa menghapus record lama.
+  const transactionMap = await resolveBestMap({allowFresh:true, timeoutMs:4500});
+
   const records = lines.map((p, index) => ({
     idTransaksi: randomId8(),
     idPesanan: orderId,
@@ -655,6 +661,8 @@ async function saveOrder() {
     ownerUsername: String(session.username || '').toLowerCase(),
     lokasi: session.lokasi,
     event: session.event,
+    map: transactionMap || '',
+    mapCapturedAt: transactionMap ? new Date().toISOString() : '',
     createdAt: now + index,
     syncStatus: 'PENDING',
     lastSyncError: ''
@@ -689,32 +697,108 @@ async function saveOrder() {
   if (navigator.onLine) setTimeout(syncAll, 250);
 }
 
-async function syncAll() {
-  if (syncInProgress || !session || !navigator.onLine) return;
+async function manualSyncButton() {
+  if (!session) return;
+
+  const logistic = isLogisticRole();
+  const selector = logistic ? '#logisticSyncBtn' : '#syncBtn';
+  const messageSelector = logistic ? '#logisticSaveMsg' : '#saveMsg';
+  const idleLabel = 'SYNC SEKARANG';
+
+  if (!navigator.onLine) {
+    showMsg(messageSelector, 'Tidak dapat Sync saat offline. Data lokal tetap aman.', true);
+    return;
+  }
+
+  if (syncInProgress) {
+    showMsg(messageSelector, 'SYNC sedang berjalan…', false);
+    return;
+  }
+
+  const btn = $(selector);
+  btn.classList.add('sync-loading');
+  setButton(selector, true, 'SYNCING...');
+  showMsg(messageSelector, logistic ? 'Mengirim data logistic…' : 'Memeriksa Map, foto QRIS, dan transaksi pending…', false);
+
+  try {
+    const result = await syncAll({manual:true, captureMap:true, allPhotos:true});
+    if (result?.skipped) return;
+
+    if (logistic) {
+      showMsg(messageSelector, 'SYNC Logistic selesai.', false);
+    } else {
+      const sales = result?.sales || {};
+      const photos = result?.photos || {};
+      const repair = result?.repair || {};
+      showMsg(
+        messageSelector,
+        `SYNC selesai • ${formatNumber(sales.totalSynced || 0)} transaksi • ${formatNumber(photos.uploaded || 0)} foto Drive • ${formatNumber(repair.patched || 0)} link QRIS diperbaiki`,
+        false
+      );
+    }
+  } catch (err) {
+    showMsg(messageSelector, 'SYNC tertunda • ' + String(err?.message || err) + ' • data lokal tetap aman.', true);
+  } finally {
+    btn.classList.remove('sync-loading');
+    setButton(selector, false, idleLabel);
+  }
+}
+
+async function syncAll(options = {}) {
+  if (syncInProgress || !session || !navigator.onLine) return {skipped:true};
   syncInProgress = true;
   updateNetworkState(true);
 
+  let result = {skipped:false};
+
   try {
     if (isLogisticRole()) {
-      await syncLogisticQueue();
+      result.logistic = await syncLogisticQueue();
       await metaSet(LAST_SYNC_KEY, new Date().toISOString());
       await refreshLogisticSummary(true);
     } else {
-      await syncQrisPhotos();
-      await syncQueue();
+      // Existing pending dari versi lama mungkin belum punya Map.
+      // Hanya manual Sync/PUSH yang meminta GPS baru agar auto-sync tidak
+      // memunculkan permission prompt tanpa interaksi user.
+      await enrichPendingMapsForUser(session.username, {
+        allowFresh: !!options.captureMap
+      });
+
+      // Jika foto pernah sukses ke Drive tetapi queue belum sempat menerima URL,
+      // pulihkan URL dari Vault lokal sebelum transaksi dikirim.
+      await hydrateQueueProofUrlsFromVault();
+
+      // Upload foto terlebih dahulu supaya URL Drive sudah tersedia di queue.
+      result.photos = await syncQrisPhotos({all: !!options.allPhotos});
+      await hydrateQueueProofUrlsFromVault();
+
+      result.sales = await syncQueue({silent: !!options.manual});
+
+      // Recovery untuk kasus foto sudah di Drive namun kolom Q pada Report Sales
+      // masih kosong (mis. aplikasi tertutup di antara dua langkah sync).
+      result.repair = await repairQrisProofLinksFromVault({all: !!options.allPhotos});
+
       await metaSet(LAST_SYNC_KEY, new Date().toISOString());
       await refreshMySummary(true);
+      await refreshSalesByDate(true);
     }
   } catch (err) {
     console.warn('Sync tertunda:', err);
-    if (isLogisticRole()) showMsg('#logisticSaveMsg', 'Sebagian sync logistic tertunda. Data lokal tetap aman.', true);
-    else showMsg('#saveMsg', 'Sebagian sync tertunda. Data lokal tetap aman.', true);
+    if (isLogisticRole()) {
+      showMsg('#logisticSaveMsg', 'Sebagian sync logistic tertunda. Data lokal tetap aman.', true);
+    } else if (!options.manual) {
+      showMsg('#saveMsg', 'Sebagian sync tertunda. Data lokal tetap aman.', true);
+    }
+    if (options.manual) throw err;
+    result.error = String(err?.message || err);
   } finally {
     syncInProgress = false;
     updateNetworkState(false);
     await updateMetrics();
     if (!isLogisticRole()) await renderPhotoVault();
   }
+
+  return result;
 }
 
 async function syncQrisPhotos(options = {}) {
@@ -761,6 +845,145 @@ async function updateQueueProofByOrder(orderId, url) {
   await queuePutMany(mine);
 }
 
+
+/**
+ * Salin kembali URL Drive dari Vault ke queue lokal jika transaksi pending
+ * masih memiliki Bukti Pembayaran kosong.
+ */
+async function hydrateQueueProofUrlsFromVault() {
+  if (!session) return 0;
+
+  const username = String(session.username || '').toLowerCase();
+  const photos = (await photoAll()).filter(p =>
+    String(p.ownerUsername || '').toLowerCase() === username &&
+    p.orderId &&
+    p.driveUrl
+  );
+
+  if (!photos.length) return 0;
+
+  const proofByOrder = new Map();
+  photos.forEach(p => proofByOrder.set(String(p.orderId || '').toUpperCase(), String(p.driveUrl || '')));
+
+  const rows = await queueAll();
+  const changed = [];
+
+  rows.forEach(row => {
+    if (String(row.ownerUsername || '').toLowerCase() !== username) return;
+    if (String(row.metodePembayaran || '').toUpperCase() !== 'QRIS') return;
+    const url = proofByOrder.get(String(row.idPesanan || '').toUpperCase());
+    if (!url || row.buktiPembayaran === url) return;
+    row.buktiPembayaran = url;
+    changed.push(row);
+  });
+
+  if (changed.length) await queuePutMany(changed);
+  return changed.length;
+}
+
+/**
+ * Repair kolom Q Report Sales dari URL Drive yang masih tersimpan di Vault.
+ * Tidak meng-upload ulang foto dan tidak menghapus Vault lokal.
+ */
+async function repairQrisProofLinksFromVault(options = {}) {
+  if (!session || !navigator.onLine || isLogisticRole()) return {requested:0,patched:0};
+
+  const username = String(session.username || '').toLowerCase();
+  const photos = (await photoAll())
+    .filter(p =>
+      String(p.ownerUsername || '').toLowerCase() === username &&
+      p.orderId &&
+      p.driveUrl
+    )
+    .sort((a,b) => Number(a.clientTimestamp || 0) - Number(b.clientTimestamp || 0));
+
+  const selected = options.all ? photos : photos.slice(-25);
+  if (!selected.length) return {requested:0,patched:0};
+
+  const unique = new Map();
+  selected.forEach(p => unique.set(String(p.orderId || '').toUpperCase(), String(p.driveUrl || '')));
+
+  const token = await metaGet(TOKEN_KEY);
+  const links = [...unique.entries()].map(([orderId, url]) => ({orderId, url}));
+
+  return await KtdBridge.call('repairQrisProofLinks', {token, links});
+}
+
+/**
+ * Google Maps URL dari GPS perangkat.
+ * Penyimpanan LAST_MAP_KEY memakai META store yang sudah ada; tidak membuat
+ * IndexedDB store/version baru.
+ */
+async function resolveBestMap(options = {}) {
+  let cached = '';
+  try { cached = String(await metaGet(LAST_MAP_KEY) || ''); } catch (_) {}
+
+  const sessionMap = String(session?.map || '');
+  const fallback = cached || sessionMap || '';
+  if (!options.allowFresh || !navigator.geolocation) return fallback;
+
+  const timeoutMs = Math.max(1500, Number(options.timeoutMs || 6000));
+
+  return await new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      resolve(value || fallback);
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      async position => {
+        const lat = Number(position?.coords?.latitude);
+        const lng = Number(position?.coords?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          finish(fallback);
+          return;
+        }
+
+        const url = `https://www.google.com/maps?q=${lat.toFixed(7)},${lng.toFixed(7)}`;
+        try {
+          await metaSet(LAST_MAP_KEY, url);
+          if (session) session.map = url;
+        } catch (_) {}
+        finish(url);
+      },
+      () => finish(fallback),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 300000,
+        timeout: timeoutMs
+      }
+    );
+  });
+}
+
+async function enrichPendingMapsForUser(username, options = {}) {
+  const uname = String(username || '').toLowerCase();
+  const rows = (await queueAll()).filter(row =>
+    String(row.ownerUsername || '').toLowerCase() === uname &&
+    !String(row.map || '').trim()
+  );
+
+  if (!rows.length) return 0;
+
+  const mapUrl = await resolveBestMap({
+    allowFresh: !!options.allowFresh,
+    timeoutMs: 6000
+  });
+
+  if (!mapUrl) return 0;
+
+  const now = new Date().toISOString();
+  rows.forEach(row => {
+    row.map = mapUrl;
+    row.mapCapturedAt = row.mapCapturedAt || now;
+  });
+
+  await queuePutMany(rows);
+  return rows.length;
+}
+
 async function syncQueue(options = {}) {
   const token=await metaGet(TOKEN_KEY);
   if(!token || !session || !navigator.onLine) return {totalSynced:0,pendingRemaining:session?await queueCountForUser(session.username):0,errorRemaining:session?await queueErrorCountForUser(session.username):0};
@@ -800,20 +1023,50 @@ async function forcePushAllPending(){
   if(!session || isLogisticRole()) return;
   if(!navigator.onLine){showMsg('#saveMsg','Tidak bisa PUSH saat offline. Data tetap aman di HP.',true);return;}
   if(syncInProgress){showMsg('#saveMsg','Sync sedang berjalan. Tunggu sampai selesai lalu tekan PUSH lagi.',true);return;}
-  syncInProgress=true; updateNetworkState(true); setButton('#pushPendingBtn',true,'MENGIRIM SEMUA DATA...');
+
+  syncInProgress=true;
+  updateNetworkState(true);
+  const pushBtn = $('#pushPendingBtn');
+  pushBtn.classList.add('sync-loading');
+  setButton('#pushPendingBtn',true,'MENGIRIM SEMUA DATA...');
+
   try{
     const beforePending=await queueCountForUser(session.username), beforeErrors=await queueErrorCountForUser(session.username);
-    const sales=await syncQueue({retryErrors:true,silent:true});
+
+    // Lengkapi Map untuk pending lama bila GPS tersedia.
+    await enrichPendingMapsForUser(session.username,{allowFresh:true});
+
+    // Penting: foto QRIS dikirim lebih dahulu agar URL Drive bisa ikut masuk
+    // bersama transaksi yang masih pending.
     const photos=await syncQrisPhotos({all:true});
-    await metaSet(LAST_SYNC_KEY,new Date().toISOString()); await refreshMySummary(true); await updateMetrics(); await renderPhotoVault();
+    await hydrateQueueProofUrlsFromVault();
+
+    const sales=await syncQueue({retryErrors:true,silent:true});
+
+    // Repair link untuk transaksi yang sudah telanjur ada di Report Sales.
+    const repair=await repairQrisProofLinksFromVault({all:true});
+
+    await metaSet(LAST_SYNC_KEY,new Date().toISOString());
+    await refreshMySummary(true);
+    await refreshSalesByDate(true);
+    await updateMetrics();
+    await renderPhotoVault();
+
     const afterPending=await queueCountForUser(session.username), afterErrors=await queueErrorCountForUser(session.username);
     if(afterPending===0 && afterErrors===0){
-      showMsg('#saveMsg',`PUSH selesai • ${formatNumber(sales.totalSynced)} transaksi dikonfirmasi backend${photos.uploaded?` • ${formatNumber(photos.uploaded)} foto masuk Drive`:''}`,false);
+      showMsg('#saveMsg',`PUSH selesai • ${formatNumber(sales.totalSynced)} transaksi dikonfirmasi backend${photos.uploaded?` • ${formatNumber(photos.uploaded)} foto masuk Drive`:''}${repair.patched?` • ${formatNumber(repair.patched)} link QRIS diperbaiki`:''}`,false);
     }else{
       showMsg('#saveMsg',`PUSH selesai sebagian • awal ${formatNumber(beforePending)} pending + ${formatNumber(beforeErrors)} error • berhasil ${formatNumber(sales.totalSynced)} • tersisa ${formatNumber(afterPending)} pending + ${formatNumber(afterErrors)} error. Data yang belum diterima backend tetap tersimpan di HP.`,true);
     }
-  }catch(err){showMsg('#saveMsg','PUSH tertunda • '+String(err?.message||err)+' • data lokal tidak dihapus.',true);}
-  finally{syncInProgress=false;updateNetworkState(false);setButton('#pushPendingBtn',false,'PUSH SEMUA PENDING KE BACKEND');await updateMetrics();}
+  }catch(err){
+    showMsg('#saveMsg','PUSH tertunda • '+String(err?.message||err)+' • data lokal tidak dihapus.',true);
+  } finally {
+    syncInProgress=false;
+    updateNetworkState(false);
+    pushBtn.classList.remove('sync-loading');
+    setButton('#pushPendingBtn',false,'PUSH SEMUA PENDING KE BACKEND');
+    await updateMetrics();
+  }
 }
 
 async function refreshMySummary(forceNetwork = false) {
@@ -1007,7 +1260,7 @@ async function refreshSalesByDate(preferNetwork=true){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){renderSalesDateError('Pilih tanggal yang valid.');return;}
   setSalesDateLoading(true);
   try{
-    const local=await getLocalSalesRowsByDate(session.username,date),cacheKey=`salesDate:v1:${String(session.username||'').toLowerCase()}:${date}`;
+    const local=await getLocalSalesRowsByDate(session.username,date),cacheKey=`salesDate:v2:${String(session.username||'').toLowerCase()}:${date}`;
     let backend=await metaGet(cacheKey),state=backend?'CACHE BACKEND':'BELUM DIMUAT';
     if(preferNetwork&&navigator.onLine){
       try{const token=await metaGet(TOKEN_KEY);backend=await KtdBridge.call('getMySalesByDate',{token,date});await metaSet(cacheKey,backend);state='LIVE BACKEND';}
@@ -1017,13 +1270,40 @@ async function refreshSalesByDate(preferNetwork=true){
   }catch(err){renderSalesDateError(String(err?.message||err));}
   finally{setSalesDateLoading(false);}
 }
+function valueToEpochMillis(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return v.getTime();
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return NaN;
+  if (/^\d{10,13}$/.test(s)) {
+    const n = Number(s);
+    return s.length === 10 ? n * 1000 : n;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function localRecordDateKey(record) {
+  const explicit = String(record?.date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(explicit)) return explicit;
+
+  for (const candidate of [record?.clientTimestamp, record?.createdAt, record?.timestamp]) {
+    const ms = valueToEpochMillis(candidate);
+    if (Number.isFinite(ms)) return jakartaDateKey(ms);
+  }
+  return '';
+}
+
 async function getLocalSalesRowsByDate(username,date){
   const u=String(username||'').toLowerCase(),rows=await queueAll();
-  return rows.filter(r=>String(r.ownerUsername||'').toLowerCase()===u&&jakartaDateKey(Number(r.clientTimestamp??r.createdAt??0))===date).map(r=>{
-    const p=products.find(p=>String(p.kodeProduk||'')===String(r.kodeProduk||'')),qty=Number(r.qty||0),price=Number(r.harga??p?.harga??0),t=Number(r.clientTimestamp??r.createdAt??Date.now());
-    return{idTransaksi:String(r.idTransaksi||''),idPesanan:String(r.idPesanan||''),timestamp:jakartaTimestampText(t),kodeProduk:String(r.kodeProduk||''),namaProduk:String(r.namaProduk||p?.namaProduk||r.kodeProduk||''),qty,satuan:String(r.satuan||p?.satuan||''),value:qty*price,payment:String(r.metodePembayaran||'').toUpperCase()==='QRIS'?'QRIS':'Cash',buktiPembayaran:String(r.buktiPembayaran||''),keterangan:String(r.keterangan||''),lokasi:String(r.lokasi||session?.lokasi||''),event:String(r.event||session?.event||''),source:'LOCAL',syncStatus:String(r.syncStatus||'PENDING')};
+  return rows.filter(r=>String(r.ownerUsername||'').toLowerCase()===u&&localRecordDateKey(r)===date).map(r=>{
+    const p=products.find(p=>String(p.kodeProduk||'')===String(r.kodeProduk||'')),qty=Number(r.qty||0),price=Number(r.harga??p?.harga??0);
+    const rawTime=[r.clientTimestamp,r.createdAt,r.timestamp].map(valueToEpochMillis).find(Number.isFinite);
+    const timestamp=Number.isFinite(rawTime)?jakartaTimestampText(rawTime):(String(r.timestamp||r.createdAt||date));
+    return{idTransaksi:String(r.idTransaksi||''),idPesanan:String(r.idPesanan||''),timestamp,kodeProduk:String(r.kodeProduk||''),namaProduk:String(r.namaProduk||p?.namaProduk||r.kodeProduk||''),qty,satuan:String(r.satuan||p?.satuan||''),value:qty*price,payment:String(r.metodePembayaran||'').toUpperCase()==='QRIS'?'QRIS':'Cash',buktiPembayaran:String(r.buktiPembayaran||''),map:String(r.map||''),keterangan:String(r.keterangan||''),lokasi:String(r.lokasi||session?.lokasi||''),event:String(r.event||session?.event||''),source:'LOCAL',syncStatus:String(r.syncStatus||'PENDING')};
   });
 }
+
 function mergeSalesDateRows(backend,local){
   const m=new Map();(backend||[]).forEach(r=>{const k=String(r.idTransaksi||'');if(k)m.set(k,{...r,source:'BACKEND',syncStatus:'SYNCED'});});(local||[]).forEach(r=>{const k=String(r.idTransaksi||'');if(k&&!m.has(k))m.set(k,r);});return[...m.values()].sort((a,b)=>String(b.timestamp||'').localeCompare(String(a.timestamp||'')));
 }
@@ -1031,7 +1311,7 @@ function renderSalesDateRows(date,rows,state){
   const s={qty:0,value:0,cash:0,qris:0,backend:0,local:0};rows.forEach(r=>{const q=Number(r.qty||0),v=Number(r.value||0);s.qty+=q;s.value+=v;if(String(r.payment||'').toUpperCase()==='QRIS')s.qris+=v;else s.cash+=v;if(r.source==='BACKEND')s.backend++;else s.local++;});
   $('#salesDateQty').textContent=formatNumber(s.qty);$('#salesDateValue').textContent=money(s.value);$('#salesDateCash').textContent=money(s.cash);$('#salesDateQris').textContent=money(s.qris);$('#salesDateSource').textContent=`${formatNumber(s.backend)} backend • ${formatNumber(s.local)} lokal`;$('#salesDateStatus').textContent=`${date} • ${state} • ${formatNumber(rows.length)} baris penjualan`;$('#salesDateStatus').classList.remove('error');
   const list=$('#salesDateList');if(!rows.length){list.innerHTML='<div class="empty-state">Tidak ada penjualan pada tanggal ini.</div>';return;}
-  list.innerHTML=rows.map(r=>{const cls=r.source==='BACKEND'?'backend':'local',txt=r.source==='BACKEND'?'BACKEND':(r.syncStatus||'LOCAL');return `<div class="sales-date-row"><div class="sales-date-main"><div class="sales-date-title"><b>${esc(r.namaProduk||r.kodeProduk)}</b><span class="sales-source ${cls}">${esc(txt)}</span></div><small>${esc(r.timestamp||'')} • ${esc(r.lokasi||'')}</small><small>Order ${esc(r.idPesanan||'-')} • ${esc(r.payment||'')}</small>${r.keterangan?`<small>${esc(r.keterangan)}</small>`:''}</div><div class="sales-date-number"><b>${formatNumber(r.qty)} ${esc(r.satuan||'')}</b><strong>${money(r.value)}</strong></div></div>`;}).join('');
+  list.innerHTML=rows.map(r=>{const cls=r.source==='BACKEND'?'backend':'local',txt=r.source==='BACKEND'?'BACKEND':(r.syncStatus||'LOCAL'),mapOk=/^https:\/\//i.test(String(r.map||'')),proofOk=/^https:\/\//i.test(String(r.buktiPembayaran||''));return `<div class="sales-date-row"><div class="sales-date-main"><div class="sales-date-title"><b>${esc(r.namaProduk||r.kodeProduk)}</b><span class="sales-source ${cls}">${esc(txt)}</span></div><small>${esc(r.timestamp||'')} • ${esc(r.lokasi||'')}</small><small>Order ${esc(r.idPesanan||'-')} • Tx ${esc(r.idTransaksi||'-')} • ${esc(r.payment||'')}</small>${r.keterangan?`<small>${esc(r.keterangan)}</small>`:''}<div class="sales-date-links">${mapOk?`<a href="${esc(r.map)}" target="_blank" rel="noopener">MAP</a>`:'<span>MAP -</span>'}${proofOk?`<a href="${esc(r.buktiPembayaran)}" target="_blank" rel="noopener">BUKTI QRIS</a>`:(String(r.payment||'').toUpperCase()==='QRIS'?'<span>BUKTI QRIS -</span>':'')}</div></div><div class="sales-date-number"><b>${formatNumber(r.qty)} ${esc(r.satuan||'')}</b><strong>${money(r.value)}</strong></div></div>`;}).join('');
 }
 function renderSalesDateError(msg){$('#salesDateStatus').textContent=msg||'Gagal memuat data tanggal.';$('#salesDateStatus').classList.add('error');}
 function setSalesDateLoading(on){setButton('#applySalesDateBtn',on,on?'MEMUAT...':'TAMPILKAN');}
