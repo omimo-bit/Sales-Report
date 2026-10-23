@@ -14,12 +14,11 @@ const OFFLINE_SINCE_KEY = 'offlineSince';
 const LAST_MAP_KEY = 'lastKnownMap';
 
 const STATIC_VENUES = [
-  {key:'STATIC|Cooltura Lampung|Logistic', lokasi:'Logistic', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Main Booth', lokasi:'Main Booth', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 1', lokasi:'Drink Stall 1', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 2', lokasi:'Drink Stall 2', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 3', lokasi:'Drink Stall 3', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 4', lokasi:'Drink Stall 4', event:'Cooltura Lampung', map:''}
+  {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 1', lokasi:'Drink Stall 1', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 2', lokasi:'Drink Stall 2', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 3', lokasi:'Drink Stall 3', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 4', lokasi:'Drink Stall 4', event:'Synchronize Festival'}
 ];
 
 let db = null;
@@ -35,6 +34,9 @@ let currentPreviewUrl = '';
 let currentInterviewPhotoId = '';
 let currentInterviewPhotoPreviewUrl = '';
 let interviewTried = false;
+let interviewWizardStep = 0;
+let interviewWizardSections = [];
+let interviewWizardNavReady = false;
 let syncInProgress = false;
 let serverSummary = {totalQty:0,totalValue:0,byItem:[],byLocation:[],byPayment:{Cash:{qty:0,value:0},QRIS:{qty:0,value:0}}};
 let currentMode = 'login';
@@ -161,6 +163,7 @@ function bindEvents() {
     renderLogisticCart();
   });
   $$('#interviewView input[type=radio]').forEach(input => input.addEventListener('change', renderInterviewShiftPreview));
+  setupInterviewWizard();
   $('#logisticLocation').addEventListener('change', async event => {
     logisticLocation = event.target.value || session?.lokasi || '';
     await refreshLogisticSummary(true);
@@ -1531,7 +1534,6 @@ function resetConsumerInterviewForm() {
   $('#interviewGender').value = '';
   $('#interviewStatus').value = '';
   $('#interviewQty').value = '1';
-  $('#interviewOrderId').value = '';
   $('#interviewComment').value = '';
   interviewTried=false;
   $('#interviewAfterSection').classList.add('hidden');
@@ -1542,13 +1544,89 @@ function resetConsumerInterviewForm() {
   $('#interviewShiftPreview').textContent = 'Lengkapi penilaian untuk melihat perubahan persepsi.';
   $('#interviewShiftPreview').classList.remove('positive','negative');
   resetInterviewPhotoPreview();
+  interviewWizardStep=0;
+  renderInterviewWizard();
+}
+
+function setupInterviewWizard(){
+  const form=$('#consumerInterviewForm');
+  if(!form || interviewWizardNavReady) return;
+  interviewWizardSections=[...form.querySelectorAll(':scope > section.card.panel:not(.interview-response-extra)')];
+  if(interviewWizardSections.length<6) return;
+  interviewWizardNavReady=true;
+  const stepper=document.createElement('div');
+  stepper.id='interviewWizardStepper';
+  stepper.className='interview-stepper';
+  stepper.innerHTML='<div class="interview-step-progress"><span id="interviewStepProgressBar"></span></div><div class="interview-step-labels"><span data-step-label="0">Profil</span><span data-step-label="1">Sebelum</span><span data-step-label="2">Coba</span><span data-step-label="3">Sesudah</span><span data-step-label="4">Respon</span><span data-step-label="5">Foto</span></div>';
+  form.parentNode.insertBefore(stepper,form);
+  const nav=document.createElement('div');
+  nav.id='interviewWizardNav';
+  nav.className='interview-wizard-nav';
+  nav.innerHTML='<button id="interviewBackBtn" class="btn-small" type="button">KEMBALI</button><button id="interviewNextBtn" class="btn-primary" type="button">LANJUT</button>';
+  form.appendChild(nav);
+  $('#interviewBackBtn').addEventListener('click',()=>{if(interviewWizardStep>0){interviewWizardStep--;renderInterviewWizard();}});
+  $('#interviewNextBtn').addEventListener('click',handleInterviewWizardNext);
+}
+function formSectionsForInterviewWizard(){
+  const form=$('#consumerInterviewForm');
+  return form ? [...form.querySelectorAll(':scope > section.card.panel')] : [];
+}
+function renderInterviewWizard(){
+  if(!interviewWizardNavReady)return;
+  [...formSectionsForInterviewWizard()].forEach(section=>section.classList.add('wizard-hidden'));
+  const active=interviewWizardSections[interviewWizardStep];
+  if(active) active.classList.remove('wizard-hidden');
+  const extra=$('.interview-response-extra');
+  if(extra) extra.classList.toggle('wizard-hidden',interviewWizardStep!==4);
+  const labels=$$('#interviewWizardStepper [data-step-label]');
+  labels.forEach((el,i)=>{el.classList.toggle('active',i===interviewWizardStep);el.classList.toggle('done',i<interviewWizardStep);});
+  const bar=$('#interviewStepProgressBar'); if(bar) bar.style.width=`${((interviewWizardStep+1)/6)*100}%`;
+  const back=$('#interviewBackBtn'),next=$('#interviewNextBtn');
+  if(back) back.disabled=interviewWizardStep===0;
+  if(next){next.textContent=interviewWizardStep===5?'SIMPAN INTERVIEW':'LANJUT';}
+  const step=interviewWizardStep;
+  if(step===2 && !interviewTried){next.disabled=true;} else {next.disabled=false;}
+  const actions=$('.interview-actions'); if(actions) actions.classList.toggle('wizard-hidden',true);
+}
+function interviewStepError(message){showMsg('#interviewSaveMsg',message,true);return false;}
+function validateInterviewStep(step){
+  if(step===0){
+    if(!$('#interviewQty').value || Number($('#interviewQty').value)<1)return interviewStepError('Masukkan jumlah Peach Tea yang dibeli.');
+    if(!$('#interviewAge').value)return interviewStepError('Pilih kelompok usia konsumen.');
+    if(!$('#interviewGender').value)return interviewStepError('Pilih gender konsumen.');
+    if(!$('#interviewStatus').value)return interviewStepError('Pilih status konsumen.');
+    if(!selectedInterviewRadio('familiarity'))return interviewStepError('Pilih apakah konsumen pernah mengenal atau mengonsumsi Kratingdaeng.');
+  }
+  if(step===1){
+    if(!selectedInterviewRadio('beforeFit'))return interviewStepError('Pilih image Kratingdaeng sebelum mencoba.');
+    if([1,2,3].some(i=>!selectedInterviewRadio(`beforeQ${i}`)))return interviewStepError('Lengkapi tiga penilaian BEFORE.');
+  }
+  if(step===2 && !interviewTried)return interviewStepError('Lanjutkan setelah konsumen benar-benar mencoba Peach Tea.');
+  if(step===3){
+    if(!selectedInterviewRadio('afterFit'))return interviewStepError('Pilih image Kratingdaeng setelah mencoba.');
+    if([1,2,3].some(i=>!selectedInterviewRadio(`afterQ${i}`)))return interviewStepError('Lengkapi tiga penilaian AFTER.');
+  }
+  if(step===4){
+    if(!selectedInterviewChecks('purchaseReasons').length)return interviewStepError('Pilih minimal satu alasan konsumen memilih Peach Tea.');
+    if(!selectedInterviewChecks('reasons').length)return interviewStepError('Pilih minimal satu hal yang membuat Peach Tea terasa cocok.');
+    if(!selectedInterviewRadio('repeatPurchase')||!selectedInterviewRadio('recommend'))return interviewStepError('Lengkapi niat beli ulang dan rekomendasi.');
+  }
+  if(step===5){
+    if(!$('#interviewPhotoConsent').checked)return interviewStepError('Minta persetujuan konsumen sebelum mengambil foto.');
+    if(!currentInterviewPhotoId)return interviewStepError('Ambil foto konsumen terlebih dahulu.');
+  }
+  return true;
+}
+function handleInterviewWizardNext(){
+  if(!validateInterviewStep(interviewWizardStep))return;
+  if(interviewWizardStep<5){interviewWizardStep++;renderInterviewWizard();window.scrollTo({top:0,behavior:'smooth'});return;}
+  saveConsumerInterview();
 }
 
 function validateInterviewForm() {
   const age = $('#interviewAge').value;
   const gender = $('#interviewGender').value;
   const consumerStatus = $('#interviewStatus').value;
-  const purchaseOrderId = $('#interviewOrderId').value.trim().toUpperCase();
   const qty = Math.max(1, Math.min(99, Number($('#interviewQty').value || 0)));
   const beforeFit = selectedInterviewRadio('beforeFit');
   const afterFit = selectedInterviewRadio('afterFit');
@@ -1560,7 +1638,6 @@ function validateInterviewForm() {
   const recommend = selectedInterviewRadio('recommend');
   const familiarity = selectedInterviewRadio('familiarity');
   const photoUsageConsent = selectedInterviewRadio('photoUsageConsent') || 'TIDAK';
-  if (!purchaseOrderId) return {ok:false,error:'Masukkan ID Pesanan Peach Tea.'};
   if (!age) return {ok:false,error:'Pilih kelompok usia konsumen.'};
   if (!gender) return {ok:false,error:'Pilih gender konsumen.'};
   if (!consumerStatus) return {ok:false,error:'Pilih status konsumen.'};
@@ -1575,7 +1652,7 @@ function validateInterviewForm() {
   if (!repeat || !recommend) return {ok:false,error:'Lengkapi niat beli ulang dan rekomendasi.'};
   if (!$('#interviewPhotoConsent').checked) return {ok:false,error:'Persetujuan foto konsumen wajib.'};
   if (!currentInterviewPhotoId) return {ok:false,error:'Ambil foto konsumen terlebih dahulu.'};
-  return {ok:true,qty,purchaseOrderId,age,gender,consumerStatus,beforeFit,afterFit,before,after,reasons,purchaseReasons,repeat,recommend,familiarity,photoUsageConsent};
+  return {ok:true,qty,age,gender,consumerStatus,beforeFit,afterFit,before,after,reasons,purchaseReasons,repeat,recommend,familiarity,photoUsageConsent};
 }
 
 async function saveConsumerInterview() {
@@ -1624,7 +1701,6 @@ async function saveConsumerInterview() {
     gender:check.gender,
     consumerStatus:check.consumerStatus,
     purchaseReasons:check.purchaseReasons,
-    purchaseOrderId:check.purchaseOrderId,
     triedPeachTea:'YA',
     photoConsent:'YA',
     photoUsageConsent:check.photoUsageConsent,

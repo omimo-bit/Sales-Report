@@ -306,3 +306,13 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 .sampling-status strong{font-size:14px;text-align:right}
 .sampling-status small{grid-column:1/-1;color:var(--muted);font-size:7px;line-height:1.35}
 @media(max-width:370px){.sampling-status{grid-template-columns:1fr auto}}
+
+
+/* V8.2 guided interview UX */
+.interview-stepper{margin:10px 0 12px;padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:#fff;position:sticky;top:8px;z-index:5;box-shadow:0 5px 18px rgba(0,0,0,.05)}
+.interview-step-progress{height:4px;background:#eee;border-radius:99px;overflow:hidden;margin-bottom:9px}.interview-step-progress span{display:block;height:100%;background:#111;border-radius:99px;transition:width .2s ease}
+.interview-step-labels{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}.interview-step-labels span{font-size:7px;font-weight:900;text-align:center;color:#aaa;line-height:1.1}.interview-step-labels span.active{color:#111}.interview-step-labels span.done{color:#777}
+.wizard-hidden{display:none!important}.interview-wizard-nav{display:grid;grid-template-columns:.8fr 1.8fr;gap:8px;margin:10px 0 4px}.interview-wizard-nav .btn-small{background:#fff}.interview-wizard-nav .btn-primary{margin:0}.interview-wizard-nav button:disabled{opacity:.45;cursor:not-allowed}
+.interview-wizard-section{animation:interviewStepIn .16s ease}.interview-response-extra{margin-top:0}
+@keyframes interviewStepIn{from{opacity:.7;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media(max-width:520px){.interview-stepper{top:4px}.interview-step-labels span{font-size:6.5px}}
