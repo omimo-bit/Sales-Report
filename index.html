@@ -177,6 +177,126 @@
       </details>
     </section>
 
+
+    <section id="interviewView" class="hidden">
+      <div class="app-brandline">
+        <div class="app-brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>
+        <div class="app-brand-copy"><strong>Consumer Insight</strong><span>Peach Tea • Synchronize Festival</span></div>
+      </div>
+
+      <header class="header">
+        <div><span class="eyebrow">INTERVIEWER • TEAM LEADER</span><h2 id="interviewUserName">TL</h2><p id="interviewVenueLabel"></p></div>
+        <button id="interviewLogoutBtn" class="btn-text" type="button">Logout</button>
+      </header>
+
+      <div class="status-row">
+        <span id="interviewNetStatus" class="chip">ONLINE</span>
+        <span id="interviewRoleChip" class="chip">TL</span>
+        <span id="interviewPendingChip" class="chip">0 BELUM TERKIRIM</span>
+      </div>
+
+      <section id="interviewSyncStatus" class="sync-status" aria-live="polite">
+        <span class="sync-dot"></span><div><strong id="interviewSyncHeadline">Semua interview tersimpan</strong><span id="interviewSyncDetail">Interview akan dikirim otomatis saat koneksi tersedia.</span></div>
+      </section>
+
+      <section class="card panel interview-intro">
+        <div class="eyebrow">TUJUAN</div>
+        <h3>Apakah Peach Tea mengubah cara anak muda melihat Kratingdaeng?</h3>
+        <p>Interview membandingkan persepsi <b>sebelum</b> dan <b>setelah</b> membeli/mencoba Peach Tea. Idealnya lakukan bagian AFTER setelah konsumen sudah mencicipi Peach Tea. TL cukup membaca pertanyaan secara netral dan mencatat jawaban apa adanya.</p>
+      </section>
+
+      <form id="consumerInterviewForm" autocomplete="off">
+        <section class="card panel">
+          <div class="section-title">Profil & pembelian</div>
+          <div class="interview-grid-2">
+            <div><label class="top-label" for="interviewDate">TANGGAL</label><input id="interviewDate" type="date" readonly></div>
+            <div><label class="top-label" for="interviewQty">PEACH TEA DIBELI</label><input id="interviewQty" type="number" min="1" max="99" inputmode="numeric" value="1"></div>
+          </div>
+          <label class="top-label" for="interviewOrderId">ID PESANAN PEACH TEA</label>
+          <input id="interviewOrderId" type="text" maxlength="50" autocomplete="off" autocapitalize="characters" placeholder="Contoh: A1B2C3D4">
+          <div class="field-note">Satu ID pesanan hanya boleh dipakai untuk satu interview.</div>
+          <div class="interview-grid-2">
+            <div><label class="top-label" for="interviewAge">KELOMPOK USIA</label><select id="interviewAge"><option value="">Pilih kelompok usia</option><option value="18–20">18–20</option><option value="21–24">21–24</option><option value="25–29">25–29</option><option value="30+">30+</option></select></div>
+            <div><label class="top-label" for="interviewGender">GENDER</label><select id="interviewGender"><option value="">Pilih</option><option value="Pria">Pria</option><option value="Wanita">Wanita</option><option value="Tidak ingin menjawab">Tidak ingin menjawab</option></select></div>
+          </div>
+          <label class="top-label" for="interviewStatus">STATUS</label>
+          <select id="interviewStatus"><option value="">Pilih status</option><option value="Pelajar/Mahasiswa">Pelajar/Mahasiswa</option><option value="Karyawan">Karyawan</option><option value="Wirausaha">Wirausaha</option><option value="Freelancer">Freelancer</option><option value="Lainnya">Lainnya</option></select>
+          <div class="question-block"><label class="question-title">Sebelum membeli hari ini, apakah konsumen pernah mengenal atau mengonsumsi Kratingdaeng?</label><div class="choice-grid choice-grid-2"><label class="choice-card"><input type="radio" name="familiarity" value="PERNAH"><span>Pernah</span></label><label class="choice-card"><input type="radio" name="familiarity" value="BELUM_PERNAH"><span>Belum pernah</span></label></div></div>
+          <div class="question-block"><label class="question-title">Apa yang membuat konsumen memilih Peach Tea hari ini?</label><div class="hint">Boleh pilih lebih dari satu. Catat alasan yang benar-benar disebut konsumen.</div><div class="choice-grid choice-grid-2 reasons-grid"><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Ingin coba sesuatu yang baru"><span>Ingin coba sesuatu yang baru</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Tertarik rasa Peach Tea"><span>Tertarik rasa Peach Tea</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Kemasan / visual"><span>Kemasan / visual</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Rekomendasi teman"><span>Rekomendasi teman</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Melihat booth / aktivitas"><span>Melihat booth / aktivitas</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Harga / promo"><span>Harga / promo</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Sudah kenal Kratingdaeng"><span>Sudah kenal Kratingdaeng</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Ingin minuman yang refreshing"><span>Ingin minuman yang refreshing</span></label><label class="choice-card"><input type="checkbox" name="purchaseReasons" value="Lainnya"><span>Lainnya</span></label></div></div>
+        </section>
+
+        <section class="card panel">
+          <div class="section-title">1. Persepsi sebelum membeli</div>
+          <div class="hint">Tanyakan: “Sebelum membeli hari ini, menurut kamu Kratingdaeng paling cocok untuk siapa?”</div>
+          <div class="choice-list"><label class="choice-card"><input type="radio" name="beforeFit" value="Anak muda / Gen Z"><span>Anak muda / Gen Z</span></label><label class="choice-card"><input type="radio" name="beforeFit" value="Dewasa / pekerja"><span>Dewasa / pekerja</span></label><label class="choice-card"><input type="radio" name="beforeFit" value="Olahraga / aktivitas berat"><span>Olahraga / aktivitas berat</span></label><label class="choice-card"><input type="radio" name="beforeFit" value="Semua kalangan"><span>Semua kalangan</span></label><label class="choice-card"><input type="radio" name="beforeFit" value="Tidak yakin"><span>Tidak yakin</span></label></div>
+          <div class="rating-question"><b>Seberapa cocok Kratingdaeng untuk gaya hidup saya?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="beforeQ1" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="beforeQ1" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="beforeQ1" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="beforeQ1" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="beforeQ1" value="5"><span>5</span></label></div></div>
+          <div class="rating-question"><b>Seberapa modern dan relevan Kratingdaeng terasa bagi saya?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="beforeQ2" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="beforeQ2" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="beforeQ2" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="beforeQ2" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="beforeQ2" value="5"><span>5</span></label></div></div>
+          <div class="rating-question"><b>Seberapa cocok Kratingdaeng untuk momen santai / hangout?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="beforeQ3" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="beforeQ3" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="beforeQ3" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="beforeQ3" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="beforeQ3" value="5"><span>5</span></label></div></div>
+        </section>
+
+        <section class="card panel interview-try-gate">
+          <div class="section-title">2. Minta konsumen mencoba Peach Tea</div>
+          <p class="hint">Lanjutkan hanya setelah konsumen sudah membeli dan mencicipi Peach Tea.</p>
+          <button id="interviewTriedBtn" class="btn-primary" type="button">SUDAH MENCOBA PEACH TEA</button>
+          <div id="interviewTriedStatus" class="try-status">Belum dikonfirmasi.</div>
+        </section>
+
+        <section id="interviewAfterSection" class="card panel hidden">
+          <div class="section-title">3. Persepsi setelah mencoba Peach Tea</div>
+          <div class="hint">Tanyakan pertanyaan yang sama secara netral setelah konsumen selesai mencoba.</div>
+          <div class="choice-list"><label class="choice-card"><input type="radio" name="afterFit" value="Anak muda / Gen Z"><span>Anak muda / Gen Z</span></label><label class="choice-card"><input type="radio" name="afterFit" value="Dewasa / pekerja"><span>Dewasa / pekerja</span></label><label class="choice-card"><input type="radio" name="afterFit" value="Olahraga / aktivitas berat"><span>Olahraga / aktivitas berat</span></label><label class="choice-card"><input type="radio" name="afterFit" value="Semua kalangan"><span>Semua kalangan</span></label><label class="choice-card"><input type="radio" name="afterFit" value="Tidak yakin"><span>Tidak yakin</span></label></div>
+          <div class="rating-question"><b>Setelah mencoba Peach Tea, seberapa cocok Kratingdaeng untuk gaya hidup saya?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="afterQ1" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="afterQ1" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="afterQ1" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="afterQ1" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="afterQ1" value="5"><span>5</span></label></div></div>
+          <div class="rating-question"><b>Setelah mencoba Peach Tea, seberapa modern dan relevan Kratingdaeng terasa bagi saya?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="afterQ2" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="afterQ2" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="afterQ2" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="afterQ2" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="afterQ2" value="5"><span>5</span></label></div></div>
+          <div class="rating-question"><b>Setelah mencoba Peach Tea, seberapa cocok Kratingdaeng untuk momen santai / hangout?</b><div class="scale-row"><label class="scale-option"><input type="radio" name="afterQ3" value="1"><span>1</span></label><label class="scale-option"><input type="radio" name="afterQ3" value="2"><span>2</span></label><label class="scale-option"><input type="radio" name="afterQ3" value="3"><span>3</span></label><label class="scale-option"><input type="radio" name="afterQ3" value="4"><span>4</span></label><label class="scale-option"><input type="radio" name="afterQ3" value="5"><span>5</span></label></div></div>
+          <div id="interviewShiftPreview" class="shift-preview">Lengkapi penilaian untuk melihat perubahan persepsi.</div>
+        </section>
+
+        <section class="card panel">
+          <div class="section-title">4. Apa yang membuat Peach Tea terasa cocok?</div>
+          <div class="hint">Boleh pilih lebih dari satu. Catat alasan yang benar-benar disebut atau dipilih konsumen.</div>
+          <div class="choice-grid choice-grid-2 reasons-grid"><label class="choice-card"><input type="checkbox" name="reasons" value="Rasa"><span>Rasa</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Aroma"><span>Aroma</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Kemasan / visual"><span>Kemasan / visual</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Lebih ringan / refreshing"><span>Lebih ringan / refreshing</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Cocok untuk hangout"><span>Cocok untuk hangout</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Harga"><span>Harga</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Brand Kratingdaeng"><span>Brand Kratingdaeng</span></label><label class="choice-card"><input type="checkbox" name="reasons" value="Lainnya"><span>Lainnya</span></label></div>
+        </section>
+
+        <section class="card panel">
+          <div class="section-title">5. Niat setelah mencoba</div>
+          <div class="question-block"><label class="question-title">Apakah kamu tertarik membeli Peach Tea lagi?</label><div class="choice-grid choice-grid-3"><label class="choice-card"><input type="radio" name="repeatPurchase" value="YA"><span>Ya</span></label><label class="choice-card"><input type="radio" name="repeatPurchase" value="MUNGKIN"><span>Mungkin</span></label><label class="choice-card"><input type="radio" name="repeatPurchase" value="TIDAK"><span>Tidak</span></label></div></div>
+          <div class="question-block"><label class="question-title">Apakah kamu akan merekomendasikan Peach Tea ke teman?</label><div class="choice-grid choice-grid-3"><label class="choice-card"><input type="radio" name="recommend" value="YA"><span>Ya</span></label><label class="choice-card"><input type="radio" name="recommend" value="MUNGKIN"><span>Mungkin</span></label><label class="choice-card"><input type="radio" name="recommend" value="TIDAK"><span>Tidak</span></label></div></div>
+        </section>
+
+        <section class="card panel interview-photo-panel">
+          <div class="section-title">6. Dokumentasi konsumen</div>
+          <p class="hint">Foto diambil setelah konsumen mencoba. Usahakan satu orang terlihat jelas dan memegang Peach Tea.</p>
+          <label class="choice-card consent-card"><input id="interviewPhotoConsent" type="checkbox"><span>Saya sudah meminta persetujuan konsumen untuk difoto sebagai dokumentasi interview.</span></label>
+          <div class="question-block"><label class="question-title">Boleh digunakan untuk materi presentasi / komunikasi internal?</label><div class="choice-grid choice-grid-2"><label class="choice-card"><input type="radio" name="photoUsageConsent" value="YA"><span>Ya</span></label><label class="choice-card"><input type="radio" name="photoUsageConsent" value="TIDAK" checked><span>Tidak</span></label></div></div>
+          <input id="interviewPhotoCameraInput" class="camera-input" type="file" accept="image/*" capture="environment">
+          <button id="interviewPhotoCameraBtn" class="btn-camera" type="button">AMBIL FOTO KONSUMEN</button>
+          <img id="interviewPhotoPreview" class="interview-photo-preview hidden" alt="Preview foto konsumen">
+          <button id="interviewPhotoRetakeBtn" class="btn-small full hidden" type="button">AMBIL ULANG FOTO</button>
+          <div id="interviewPhotoStatus" class="qris-status">Foto konsumen wajib sebelum interview disimpan.</div>
+          <label class="top-label" for="interviewComment">KOMENTAR SPONTAN (OPSIONAL)</label>
+          <textarea id="interviewComment" maxlength="500" rows="3" placeholder="Catat ucapan konsumen yang paling relevan…"></textarea>
+        </section>
+
+        <section class="interview-actions"><button id="interviewSaveBtn" class="btn-primary" type="button">SIMPAN INTERVIEW</button><button id="interviewResetBtn" class="btn-small full" type="button">Reset form</button></section>
+      </form>
+      <div id="interviewSaveMsg" class="message"></div>
+
+      <section class="sync-panel interview-sync-panel">
+        <div class="sync-panel-main"><div class="sync-state-copy"><span class="sync-kicker">DATA INTERVIEW</span><strong>Data interview konsumen</strong><span>Interview offline tetap tersimpan di perangkat sampai diterima server.</span></div><button id="interviewSyncBtn" class="btn-dark" type="button">SYNC DATA</button></div>
+        <div class="metric-grid interview-metrics"><div><span>Belum terkirim</span><strong id="interviewPendingCount">0</strong></div><div><span>Perlu dikirim ulang</span><strong id="interviewErrorCount">0</strong></div><div><span>Interview hari ini</span><strong id="interviewTodayCount">0</strong></div><div><span>Offline</span><strong id="interviewOfflineDuration">0m</strong></div><div class="metric-grid-wide"><span>Sync terakhir</span><strong id="interviewLastSyncAt">Belum pernah</strong></div></div>
+      </section>
+
+      <section class="card panel interview-dashboard">
+        <div class="summary-head"><div><div class="section-title no-margin">Insight hari ini</div><div id="interviewSummaryStatus" class="hint">Memuat data…</div></div><button id="interviewRefreshBtn" class="btn-small" type="button">Refresh</button></div>
+        <div class="interview-kpis"><div><span>Interview</span><strong id="interviewTotalCount">0</strong></div><div><span>Before</span><strong id="interviewBeforeAvg">—</strong></div><div><span>After</span><strong id="interviewAfterAvg">—</strong></div><div class="shift-kpi"><span>Image Shift</span><strong id="interviewShiftScore">—</strong></div><div><span>Ingin beli lagi</span><strong id="interviewRepeatRate">—</strong></div><div class="genz-kpi"><span>Image Gen Z</span><strong id="interviewGenZShift">—</strong><small id="interviewGenZShiftDetail">Belum ada data</small></div></div>
+        <div class="sampling-status"><span>Sampling venue</span><strong id="interviewSamplingStatus">0 / 20</strong><small>Target per venue dapat diubah di config.js.</small></div>
+        <div class="interview-insight-grid"><div><div class="summary-subtitle">IMAGE SEBELUM</div><div id="interviewBeforeProfile" class="insight-list"></div></div><div><div class="summary-subtitle">IMAGE SESUDAH</div><div id="interviewAfterProfile" class="insight-list"></div></div></div>
+        <div class="interview-insight-grid"><div><div class="summary-subtitle">USIA</div><div id="interviewAgeProfile" class="insight-list"></div></div><div><div class="summary-subtitle">GENDER</div><div id="interviewGenderProfile" class="insight-list"></div></div></div>
+        <div class="interview-insight-grid"><div><div class="summary-subtitle">STATUS</div><div id="interviewStatusProfile" class="insight-list"></div></div><div><div class="summary-subtitle">ALASAN MEMILIH PEACH TEA</div><div id="interviewPurchaseReasons" class="insight-list"></div></div></div>
+        <div class="summary-subtitle">ALASAN PEACH TEA TERASA COCOK</div><div id="interviewReasons" class="insight-list"></div>
+      </section>
+    </section>
+
     <section id="logisticsView" class="hidden">
       <div class="app-brandline">
         <div class="app-brand-mark"><img src="./logo.webp" alt="DOTSIXTWOO"></div>

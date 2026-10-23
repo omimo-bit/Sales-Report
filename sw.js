@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktd-sales-v7-ux-consolidated-20261022';
+const CACHE_NAME = 'ktd-sales-v8-1-tl-interview-photo-20261023';
 const APP_SHELL = [
   './','./index.html','./styles.css','./config.js','./bridge-client.js','./app.js',
   './manifest.webmanifest','./logo.webp','./icon-192.png','./icon-512.png'

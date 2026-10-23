@@ -220,3 +220,89 @@ button{touch-action:manipulation}.product-card,.summary-row,.vault-row{content-v
 #logisticSyncStatus.syncing .sync-dot{background:#C8AA00;box-shadow:0 0 0 3px rgba(200,170,0,.12)}
 #logisticSyncStatus.attention .sync-dot{background:#B42318;box-shadow:0 0 0 3px rgba(180,35,24,.10)}
 #logisticSyncStatus.offline .sync-dot{background:#77776F;box-shadow:0 0 0 3px rgba(119,119,111,.10)}
+
+
+/* =========================================================
+   V8 — TL CONSUMER INTERVIEW / PEACH TEA IMAGE SHIFT
+   Additive module. Existing Sales/Logistic visual system unchanged.
+   ========================================================= */
+.interview-intro{background:#fff;border-left:3px solid var(--yellow)}
+.interview-intro h3{margin:6px 0 7px;font-size:17px;line-height:1.25;letter-spacing:-.2px}
+.interview-intro p{margin:0;color:var(--muted);font-size:10px;line-height:1.55}
+.interview-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.question-block{margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}
+.question-title{margin:0 0 8px;font-size:11px;font-weight:900;line-height:1.4;letter-spacing:0}
+.choice-list{display:grid;gap:7px;margin-top:10px}
+.choice-grid{display:grid;gap:7px;margin-top:9px}
+.choice-grid-2{grid-template-columns:1fr 1fr}
+.choice-grid-3{grid-template-columns:1fr 1fr 1fr}
+.choice-card{position:relative;display:flex;align-items:center;min-height:43px;padding:9px 10px;margin:0;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer;font-size:10px;font-weight:800;line-height:1.25}
+.choice-card input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.choice-card span{display:block;width:100%}
+.choice-card:has(input:checked){border-color:#D8BE00;background:var(--yellow-soft);box-shadow:inset 0 0 0 1px #E2C300}
+.rating-question{margin-top:15px;padding-top:13px;border-top:1px solid var(--line)}
+.rating-question>b{display:block;font-size:10px;line-height:1.4}
+.scale-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.scale-option{position:relative;display:block;margin:0;min-height:40px}
+.scale-option input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.scale-option span{display:grid;place-items:center;height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px;font-weight:900;cursor:pointer}
+.scale-option:has(input:checked) span{background:#111;color:#fff;border-color:#111}
+.shift-preview{margin-top:13px;padding:10px 11px;border-radius:11px;background:#F7F7F3;border:1px solid var(--line);text-align:center;color:var(--muted);font-size:10px;line-height:1.35}
+.shift-preview strong{color:#111;font-size:13px}
+.shift-preview.positive{background:#F0FAF4;border-color:#B9E3CA;color:#067647}
+.shift-preview.positive strong{color:#067647}
+.shift-preview.negative{background:#FFF4F2;border-color:#F0C4BE;color:#B42318}
+.shift-preview.negative strong{color:#B42318}
+#interviewComment{width:100%;min-height:88px;resize:vertical;border:1px solid #DCDCD4;background:#fff;border-radius:14px;padding:11px 13px;font-size:13px;outline:none}
+#interviewComment:focus{border-color:#C8AA00;box-shadow:0 0 0 3px rgba(255,217,0,.18)}
+.interview-actions{display:grid;gap:7px;margin:12px 0 4px}
+.interview-actions .btn-primary{margin-top:0}
+.interview-actions .btn-small{background:#fff}
+.interview-sync-panel{margin-top:12px}
+.interview-metrics{margin-bottom:0}
+.interview-dashboard{margin-top:11px}
+.interview-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 15px}
+.interview-kpis>div{min-width:0;padding:10px 8px;border:1px solid var(--line);border-radius:11px;background:#fff;text-align:center}
+.interview-kpis span{display:block;color:var(--muted);font-size:8px;font-weight:900;line-height:1.2}
+.interview-kpis strong{display:block;margin-top:4px;font-size:15px;line-height:1.1}
+.interview-kpis .shift-kpi{background:var(--yellow-soft);border-color:#F1DE64}
+.interview-kpis .genz-kpi{background:#FCFCFA}
+.interview-kpis .genz-kpi small{display:block;margin-top:3px;color:var(--muted);font-size:7px;line-height:1.2}
+.interview-insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.insight-list{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+.insight-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border-top:1px solid var(--line);font-size:9px;line-height:1.25}
+.insight-row:first-child{border-top:0}
+.insight-row span{color:#444}
+.insight-row strong{font-size:10px}
+.reasons-grid .choice-card{min-height:40px}
+#interviewSyncStatus.syncing .sync-dot{background:#C8AA00;box-shadow:0 0 0 3px rgba(200,170,0,.12)}
+#interviewSyncStatus.attention .sync-dot{background:#B42318;box-shadow:0 0 0 3px rgba(180,35,24,.10)}
+#interviewSyncStatus.offline .sync-dot{background:#77776F;box-shadow:0 0 0 3px rgba(119,119,111,.10)}
+@media(max-width:470px){
+  .interview-kpis{grid-template-columns:repeat(2,1fr)}
+  .interview-kpis .shift-kpi{grid-column:span 2}
+}
+@media(max-width:370px){
+  .choice-grid-2,.interview-grid-2,.interview-insight-grid{grid-template-columns:1fr}
+  .choice-grid-3{grid-template-columns:1fr}
+}
+
+/* =========================================================
+   V8.1 — CONSUMER PHOTO + RESEARCH QUALITY CONTROLS
+   Additive only. Existing sales/logistic styles remain unchanged.
+   ========================================================= */
+.field-note{margin:-4px 1px 10px;color:var(--muted);font-size:8px;line-height:1.4}
+.interview-try-gate{background:#fff;border-left:3px solid var(--yellow)}
+.interview-try-gate .btn-primary{margin-top:10px}
+.try-status{margin-top:8px;text-align:center;color:var(--muted);font-size:9px;line-height:1.4}
+.try-status.confirmed{font-weight:900;color:#067647}
+.interview-photo-panel{background:#fff}
+.consent-card{align-items:flex-start;margin-top:10px}
+.consent-card input{position:relative!important;width:18px!important;height:18px!important;opacity:1!important;pointer-events:auto!important;flex:0 0 18px;margin:2px 7px 0 0;accent-color:#111}
+.interview-photo-preview{display:block;width:100%;max-height:360px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:13px;margin-top:10px}
+.interview-photo-panel .btn-small.full{margin-top:8px}
+.sampling-status{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;margin:0 0 14px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:#FCFCFA}
+.sampling-status span{font-size:9px;font-weight:900}
+.sampling-status strong{font-size:14px;text-align:right}
+.sampling-status small{grid-column:1/-1;color:var(--muted);font-size:7px;line-height:1.35}
+@media(max-width:370px){.sampling-status{grid-template-columns:1fr auto}}

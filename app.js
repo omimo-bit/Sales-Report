@@ -14,12 +14,11 @@ const OFFLINE_SINCE_KEY = 'offlineSince';
 const LAST_MAP_KEY = 'lastKnownMap';
 
 const STATIC_VENUES = [
-  {key:'STATIC|Cooltura Lampung|Logistic', lokasi:'Logistic', event:'Cooltura Lampung'},
-  {key:'STATIC|Cooltura Lampung|Main Booth', lokasi:'Main Booth', event:'Cooltura Lampung'},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 1', lokasi:'Drink Stall 1', event:'Cooltura Lampung'},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 2', lokasi:'Drink Stall 2', event:'Cooltura Lampung'},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 3', lokasi:'Drink Stall 3', event:'Cooltura Lampung'},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 4', lokasi:'Drink Stall 4', event:'Cooltura Lampung'}
+  {key:'STATIC|Synchronize Festival|Main Booth', lokasi:'Main Booth', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 1', lokasi:'Drink Stall 1', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 2', lokasi:'Drink Stall 2', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 3', lokasi:'Drink Stall 3', event:'Synchronize Festival'},
+  {key:'STATIC|Synchronize Festival|Drink Stall 4', lokasi:'Drink Stall 4', event:'Synchronize Festival'}
 ];
 
 let db = null;
@@ -32,6 +31,9 @@ let selectedCategory = 'ALL';
 let cart = {};
 let currentPhotoId = '';
 let currentPreviewUrl = '';
+let currentInterviewPhotoId = '';
+let currentInterviewPhotoPreviewUrl = '';
+let interviewTried = false;
 let syncInProgress = false;
 let serverSummary = {totalQty:0,totalValue:0,byItem:[],byLocation:[],byPayment:{Cash:{qty:0,value:0},QRIS:{qty:0,value:0}}};
 let currentMode = 'login';
@@ -106,6 +108,14 @@ function bindEvents() {
   $('#pushPendingBtn').addEventListener('click', forcePushAllPending);
   $('#refreshSummaryBtn').addEventListener('click', () => refreshMySummary(true));
   $('#downloadAllQrisBtn').addEventListener('click', downloadAllQrisPhotos);
+  $('#interviewSaveBtn').addEventListener('click', saveConsumerInterview);
+  $('#interviewSyncBtn').addEventListener('click', manualSyncButton);
+  $('#interviewRefreshBtn').addEventListener('click', refreshConsumerInterviewSummary);
+  $('#interviewResetBtn').addEventListener('click', async () => { await discardInterviewDraftPhoto(); resetConsumerInterviewForm(); showMsg('#interviewSaveMsg', 'Form siap untuk interview berikutnya.', false); });
+  $('#interviewTriedBtn').addEventListener('click', confirmInterviewTried);
+  $('#interviewPhotoCameraBtn').addEventListener('click', () => { if (!$('#interviewPhotoConsent').checked) { setInterviewPhotoStatus('Centang persetujuan foto terlebih dahulu.', true); return; } const input=$('#interviewPhotoCameraInput'); input.value=''; input.click(); });
+  $('#interviewPhotoCameraInput').addEventListener('change', handleInterviewPhotoCapture);
+  $('#interviewPhotoRetakeBtn').addEventListener('click', () => { if (!$('#interviewPhotoConsent').checked) { setInterviewPhotoStatus('Centang persetujuan foto terlebih dahulu.', true); return; } const input=$('#interviewPhotoCameraInput'); input.value=''; input.click(); });
   $('#applySalesDateBtn').addEventListener('click', () => refreshSalesByDate(true));
   $('#todaySalesDateBtn').addEventListener('click', async () => { $('#salesDateFilter').value = jakartaDateKey(Date.now()); await refreshSalesByDate(true); });
   $('#salesDateFilter').addEventListener('change', () => refreshSalesByDate(true));
@@ -136,6 +146,7 @@ function bindEvents() {
   });
 
   $('#logisticLogoutBtn').addEventListener('click', logout);
+  $('#interviewLogoutBtn').addEventListener('click', logout);
   $('#logisticSaveBtn').addEventListener('click', saveLogisticMovement);
   $('#logisticSyncBtn').addEventListener('click', manualSyncButton);
   $('#logisticRefreshBtn').addEventListener('click', () => refreshLogisticSummary(true));
@@ -148,6 +159,7 @@ function bindEvents() {
     logisticType = event.target.value || 'IN';
     renderLogisticCart();
   });
+  $$('#interviewView input[type=radio]').forEach(input => input.addEventListener('change', renderInterviewShiftPreview));
   $('#logisticLocation').addEventListener('change', async event => {
     logisticLocation = event.target.value || session?.lokasi || '';
     await refreshLogisticSummary(true);
@@ -262,6 +274,7 @@ function enterApp(result, offlineRestore) {
   $('#loginView').classList.add('hidden');
   $('#salesView').classList.add('hidden');
   $('#logisticsView').classList.add('hidden');
+  $('#interviewView').classList.add('hidden');
 
   if (isLogisticRole()) {
     currentMode = 'logistic';
@@ -276,6 +289,19 @@ function enterApp(result, offlineRestore) {
     renderLogisticCart();
     updateMetrics();
     refreshLogisticSummary(!offlineRestore && navigator.onLine);
+    return;
+  }
+
+  if (isTlRole()) {
+    currentMode = 'interview';
+    $('#interviewView').classList.remove('hidden');
+    $('#interviewUserName').textContent = session.namaUser || session.username;
+    $('#interviewVenueLabel').textContent = `${session.lokasi} • ${session.event}`;
+    $('#interviewRoleChip').textContent = 'TL';
+    ensureInterviewDate();
+    resetConsumerInterviewForm();
+    updateInterviewMetrics();
+    refreshConsumerInterviewSummary();
     return;
   }
 
@@ -298,6 +324,11 @@ function enterApp(result, offlineRestore) {
 
 function normalizedRole() {
   return String(session?.role || '').trim().toLowerCase();
+}
+
+function isTlRole() {
+  const role = normalizedRole();
+  return role === 'tl' || role.includes('team leader') || role.includes('teamleader');
 }
 
 function isLogisticRole() {
@@ -331,7 +362,7 @@ async function restoreOrSync() {
     products = result.products || products;
     logisticItems = result.logisticItems || logisticItems;
     venues = result.venues || venues;
-    const newMode = isLogisticRole() ? 'logistic' : 'sales';
+    const newMode = isLogisticRole() ? 'logistic' : (isTlRole() ? 'interview' : 'sales');
 
     if (!session || oldMode !== newMode || currentMode === 'login') {
       enterApp(cached, false);
@@ -341,6 +372,13 @@ async function restoreOrSync() {
       renderLogisticProducts();
       renderLogisticCart();
       await refreshLogisticSummary(false);
+    } else if (newMode === 'interview') {
+      $('#interviewView').classList.remove('hidden');
+      $('#interviewUserName').textContent = session.namaUser || session.username;
+      $('#interviewVenueLabel').textContent = `${session.lokasi} • ${session.event}`;
+      ensureInterviewDate();
+      updateInterviewMetrics();
+      await refreshConsumerInterviewSummary();
     } else {
       renderCategories();
       renderProducts();
@@ -366,9 +404,10 @@ async function logout() {
   const pendingTx = username ? await queueCountForUser(username) : 0;
   const pendingPhotos = username ? await photoPendingCountForUser(username) : 0;
   const pendingLogistic = username ? await logisticPendingCountForUser(username) : 0;
+  const pendingInterview = username ? await interviewPendingCountForUser(username) : 0;
 
-  if (pendingTx || pendingPhotos || pendingLogistic) {
-    const ok = confirm(`Masih ada ${pendingTx} transaksi sales, ${pendingPhotos} foto, dan ${pendingLogistic} movement logistic menunggu sync. Logout? Data lokal tetap tersimpan di perangkat.`);
+  if (pendingTx || pendingPhotos || pendingLogistic || pendingInterview) {
+    const ok = confirm(`Masih ada ${pendingTx} transaksi sales, ${pendingPhotos} foto, ${pendingLogistic} movement logistic, dan ${pendingInterview} interview konsumen menunggu sync. Logout? Data lokal tetap tersimpan di perangkat.`);
     if (!ok) return;
   }
 
@@ -383,6 +422,7 @@ async function logout() {
   resetQrisPreview();
   $('#salesView').classList.add('hidden');
   $('#logisticsView').classList.add('hidden');
+  $('#interviewView').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
   renderVenueSelect();
 }
@@ -391,6 +431,7 @@ function showLogin() {
   currentMode = 'login';
   $('#salesView').classList.add('hidden');
   $('#logisticsView').classList.add('hidden');
+  $('#interviewView').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
   metaGet(VENUE_CACHE_KEY).then(v => {
     venues = Array.isArray(v) && v.length ? v : STATIC_VENUES.slice();
@@ -485,6 +526,7 @@ async function handleQrisCapture(event) {
     const photoId = 'QRP-' + randomId8() + randomId8();
     const record = {
       photoId,
+      recordType:'QRIS_PROOF',
       orderId: '',
       ownerUsername: String(session?.username || '').toLowerCase(),
       username: session?.username || '',
@@ -613,6 +655,78 @@ function setQrisStatus(text, isError = false, isSuccess = false) {
   el.classList.toggle('success', !!isSuccess);
 }
 
+function setInterviewPhotoStatus(text, isError=false, isSuccess=false){
+  const el=$('#interviewPhotoStatus');
+  if(!el)return;
+  el.textContent=text||'';
+  el.classList.toggle('error',!!isError);
+  el.classList.toggle('success',!!isSuccess);
+}
+
+function resetInterviewPhotoPreview(){
+  if(currentInterviewPhotoPreviewUrl){
+    try{URL.revokeObjectURL(currentInterviewPhotoPreviewUrl);}catch(_){ }
+    currentInterviewPhotoPreviewUrl='';
+  }
+  const img=$('#interviewPhotoPreview');
+  if(img){img.removeAttribute('src');img.classList.add('hidden');}
+  $('#interviewPhotoRetakeBtn')?.classList.add('hidden');
+  setInterviewPhotoStatus('Foto konsumen wajib sebelum interview disimpan.',false);
+}
+
+async function handleInterviewPhotoCapture(event){
+  const file=event.target.files&&event.target.files[0];
+  if(!file)return;
+  if(!interviewTried){setInterviewPhotoStatus('Ambil foto setelah konsumen sudah mencoba Peach Tea.',true);return;}
+  if(!$('#interviewPhotoConsent').checked){setInterviewPhotoStatus('Centang persetujuan foto terlebih dahulu.',true);return;}
+  if(!String(file.type||'').toLowerCase().startsWith('image/')){setInterviewPhotoStatus('Foto konsumen harus berupa foto.',true);return;}
+  if(file.size>20000000){setInterviewPhotoStatus('Foto terlalu besar. Maksimal 20 MB.',true);return;}
+  setInterviewPhotoStatus('Mengamankan foto ke perangkat...',false);
+  setButton('#interviewPhotoCameraBtn',true,'MEMPROSES...');
+  try{
+    const compressed=await compressImage(file);
+    await discardInterviewDraftPhoto();
+    const photoId='CIP-'+randomId8()+randomId8();
+    const record={
+      photoId,recordType:'CONSUMER_INTERVIEW_PHOTO',interviewId:'',ownerUsername:String(session?.username||'').toLowerCase(),
+      username:session?.username||'',namaUser:session?.namaUser||session?.username||'',venue:session?.lokasi||'',event:session?.event||'',
+      createdAt:new Date().toISOString(),clientTimestamp:Date.now(),state:'DRAFT',uploadStatus:'LOCAL',driveUrl:'',driveFileId:'',driveFileName:'',lastError:'',
+      ageGroup:$('#interviewAge').value||'',photoConsent:'YA',photoUsageConsent:selectedInterviewRadio('photoUsageConsent')||'TIDAK',
+      blob:compressed.blob,width:compressed.width,height:compressed.height,originalBytes:file.size,storedBytes:compressed.blob.size
+    };
+    await photoPut(record);
+    currentInterviewPhotoId=photoId;
+    currentInterviewPhotoPreviewUrl=URL.createObjectURL(record.blob);
+    $('#interviewPhotoPreview').src=currentInterviewPhotoPreviewUrl;
+    $('#interviewPhotoPreview').classList.remove('hidden');
+    $('#interviewPhotoRetakeBtn').classList.remove('hidden');
+    setInterviewPhotoStatus(`Foto aman lokal • ${Math.round(record.storedBytes/1024)} KB`,false,true);
+  }catch(err){setInterviewPhotoStatus(err?.message||String(err),true);}finally{
+    setButton('#interviewPhotoCameraBtn',false,'AMBIL FOTO KONSUMEN');
+  }
+}
+
+async function discardInterviewDraftPhoto(){
+  if(!currentInterviewPhotoId)return;
+  try{
+    const row=await photoGet(currentInterviewPhotoId);
+    if(row && row.recordType==='CONSUMER_INTERVIEW_PHOTO' && row.state==='DRAFT') await photoDelete(currentInterviewPhotoId);
+  }catch(_){ }
+  currentInterviewPhotoId='';
+  resetInterviewPhotoPreview();
+}
+
+function confirmInterviewTried(){
+  interviewTried=true;
+  $('#interviewAfterSection').classList.remove('hidden');
+  $('#interviewTriedBtn').disabled=true;
+  $('#interviewTriedBtn').textContent='✓ KONSUMEN SUDAH MENCOBA';
+  $('#interviewTriedStatus').textContent='Sudah mencoba • lanjutkan ke pertanyaan AFTER.';
+  $('#interviewTriedStatus').classList.add('confirmed');
+  const after=$('#interviewAfterSection');
+  after?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
 async function saveOrder() {
   if (!session) return;
   const lines = selectedCartLines();
@@ -702,8 +816,9 @@ async function manualSyncButton() {
   if (!session) return;
 
   const logistic = isLogisticRole();
-  const selector = logistic ? '#logisticSyncBtn' : '#syncBtn';
-  const messageSelector = logistic ? '#logisticSaveMsg' : '#saveMsg';
+  const interview = isTlRole();
+  const selector = logistic ? '#logisticSyncBtn' : (interview ? '#interviewSyncBtn' : '#syncBtn');
+  const messageSelector = logistic ? '#logisticSaveMsg' : (interview ? '#interviewSaveMsg' : '#saveMsg');
   const idleLabel = 'SYNC DATA';
 
   if (!navigator.onLine) {
@@ -719,14 +834,18 @@ async function manualSyncButton() {
   const btn = $(selector);
   btn.classList.add('sync-loading');
   setButton(selector, true, 'SYNCING...');
-  showMsg(messageSelector, logistic ? 'Mengirim data tersimpan…' : 'Mengirim data tersimpan dan mencadangkan bukti pembayaran…', false);
+  showMsg(messageSelector, logistic ? 'Mengirim data tersimpan…' : (interview ? 'Mengirim interview konsumen tersimpan…' : 'Mengirim data tersimpan dan mencadangkan bukti pembayaran…'), false);
 
   try {
-    const result = await syncAll({manual:true, captureMap:true, allPhotos:true});
+    const result = await syncAll({manual:true, captureMap:true, allPhotos:true, allInterviewPhotos:true});
     if (result?.skipped) return;
 
     if (logistic) {
       showMsg(messageSelector, 'Sinkronisasi selesai.', false);
+    } else if (interview) {
+      showMsg(messageSelector, `Sinkronisasi selesai • ${formatNumber(result?.interviews?.totalSynced || 0)} interview • ${formatNumber(result?.interviewPhotos?.uploaded || 0)} foto tersimpan`, false);
+      await updateInterviewMetrics();
+      await refreshConsumerInterviewSummary();
     } else {
       const sales = result?.sales || {};
       const photos = result?.photos || {};
@@ -757,6 +876,17 @@ async function syncAll(options = {}) {
       result.logistic = await syncLogisticQueue();
       await metaSet(LAST_SYNC_KEY, new Date().toISOString());
       await refreshLogisticSummary(true);
+    } else if (isTlRole()) {
+      // Foto konsumen dikirim lebih dahulu. Jika interview belum ada di Sheet,
+      // URL tetap disimpan di Vault dan akan dipatch setelah interview diterima.
+      result.interviewPhotos = await syncConsumerInterviewPhotos({all: !!options.allInterviewPhotos});
+      result.interviews = await syncInterviewQueue({silent: !!options.manual, retryErrors: !!options.manual});
+      // Foto bisa sudah sukses ke Drive sebelum row interview masuk Sheet.
+      // Repair link dilakukan terpisah tanpa meng-upload ulang foto.
+      result.interviewPhotoRepair = await repairConsumerInterviewPhotoLinksFromVault({all: !!options.allInterviewPhotos});
+      await metaSet(LAST_SYNC_KEY, new Date().toISOString());
+      await updateInterviewMetrics();
+      await refreshConsumerInterviewSummary();
     } else {
       // Existing pending dari versi lama mungkin belum punya Map.
       // Hanya manual Sync/PUSH yang meminta GPS baru agar auto-sync tidak
@@ -787,6 +917,8 @@ async function syncAll(options = {}) {
     console.warn('Sync tertunda:', err);
     if (isLogisticRole()) {
       showMsg('#logisticSaveMsg', 'Sebagian sync logistic tertunda. Data lokal tetap aman.', true);
+    } else if (isTlRole()) {
+      showMsg('#interviewSaveMsg', 'Sebagian interview belum terkirim. Data lokal tetap aman.', true);
     } else if (!options.manual) {
       showMsg('#saveMsg', 'Sebagian sync tertunda. Data lokal tetap aman.', true);
     }
@@ -796,7 +928,7 @@ async function syncAll(options = {}) {
     syncInProgress = false;
     updateNetworkState(false);
     await updateMetrics();
-    if (!isLogisticRole()) await renderPhotoVault();
+    if (!isLogisticRole() && !isTlRole()) await renderPhotoVault();
   }
 
   return result;
@@ -807,7 +939,7 @@ async function syncQrisPhotos(options = {}) {
   if (!token || !session || !navigator.onLine) return {attempted:0,uploaded:0,failed:0};
   const all = await photoAll();
   const username = String(session.username || '').toLowerCase();
-  const candidates = all.filter(p => String(p.ownerUsername || '').toLowerCase() === username && p.state === 'COMMITTED' && p.orderId && p.uploadStatus !== 'UPLOADED')
+  const candidates = all.filter(p => (!p.recordType || p.recordType === 'QRIS_PROOF') && String(p.ownerUsername || '').toLowerCase() === username && p.state === 'COMMITTED' && p.orderId && p.uploadStatus !== 'UPLOADED')
     .sort((a,b) => Number(a.clientTimestamp || 0) - Number(b.clientTimestamp || 0));
   const pending = options.all ? candidates : candidates.slice(0,5);
   let uploaded=0, failed=0;
@@ -826,9 +958,41 @@ async function syncQrisPhotos(options = {}) {
   return {attempted:pending.length,uploaded,failed};
 }
 
+async function syncConsumerInterviewPhotos(options={}){
+  const token=await metaGet(TOKEN_KEY);
+  if(!token||!session||!navigator.onLine||!isTlRole()) return {attempted:0,uploaded:0,failed:0};
+  const all=await photoAll();
+  const username=String(session.username||'').toLowerCase();
+  const candidates=all.filter(p=>p.recordType==='CONSUMER_INTERVIEW_PHOTO'&&String(p.ownerUsername||'').toLowerCase()===username&&p.state==='COMMITTED'&&p.interviewId&&p.uploadStatus!=='UPLOADED').sort((a,b)=>Number(a.clientTimestamp||0)-Number(b.clientTimestamp||0));
+  const pending=options.all?candidates:candidates.slice(0,5);
+  let uploaded=0,failed=0;
+  for(const photo of pending){
+    try{
+      photo.uploadStatus='UPLOADING';photo.lastError='';photo.lastAttemptAt=new Date().toISOString();await photoPut(photo);
+      const base64=await blobToBase64(photo.blob);
+      const result=await KtdBridge.call('uploadConsumerInterviewPhoto',{token,interviewId:photo.interviewId,clientTimestamp:photo.clientTimestamp,ageGroup:photo.ageGroup||'',photoConsent:'YA',photoUsageConsent:photo.photoUsageConsent||'TIDAK',base64});
+      photo.uploadStatus='UPLOADED';photo.driveUrl=result.url||photo.driveUrl||'';photo.driveFileId=result.fileId||photo.driveFileId||'';photo.driveFileName=result.fileName||photo.driveFileName||'';photo.uploadedAt=new Date().toISOString();photo.lastError='';await photoPut(photo);uploaded++;
+    }catch(err){photo.uploadStatus='ERROR';photo.lastError=String(err?.message||err);photo.lastAttemptAt=new Date().toISOString();await photoPut(photo);failed++;}
+  }
+  // Jika foto sudah ada di Drive tetapi interview baru saja masuk Sheet, endpoint upload
+  // dipanggil ulang hanya untuk yang masih punya blob; duplicate filename aman/idempotent.
+  return {attempted:pending.length,uploaded,failed};
+}
+
+async function repairConsumerInterviewPhotoLinksFromVault(options={}){
+  if(!session||!navigator.onLine||!isTlRole())return {requested:0,patched:0};
+  const user=String(session.username||'').toLowerCase();
+  const photos=(await photoAll()).filter(p=>p.recordType==='CONSUMER_INTERVIEW_PHOTO'&&String(p.ownerUsername||'').toLowerCase()===user&&p.interviewId&&p.driveUrl).sort((a,b)=>Number(a.clientTimestamp||0)-Number(b.clientTimestamp||0));
+  const selected=options.all?photos:photos.slice(-50);
+  if(!selected.length)return {requested:0,patched:0};
+  const token=await metaGet(TOKEN_KEY);
+  const links=selected.map(p=>({interviewId:p.interviewId,url:p.driveUrl,fileId:p.driveFileId||'',fileName:p.driveFileName||''}));
+  return await KtdBridge.call('repairConsumerInterviewPhotoLinks',{token,links});
+}
+
 async function blobToBase64(blob) {
   const buffer = await blob.arrayBuffer();
-  if (buffer.byteLength > 1300000) throw new Error('Foto QRIS terlalu besar untuk upload Drive.');
+  if (buffer.byteLength > 1300000) throw new Error('Foto terlalu besar untuk upload Drive.');
   const bytes = new Uint8Array(buffer);
   let binary = '';
   const chunk = 0x8000;
@@ -892,6 +1056,7 @@ async function repairQrisProofLinksFromVault(options = {}) {
   const username = String(session.username || '').toLowerCase();
   const photos = (await photoAll())
     .filter(p =>
+      (!p.recordType || p.recordType === 'QRIS_PROOF') &&
       String(p.ownerUsername || '').toLowerCase() === username &&
       p.orderId &&
       p.driveUrl
@@ -1021,7 +1186,7 @@ async function resetSalesErrorsForUser(username){
 }
 
 async function forcePushAllPending(){
-  if(!session || isLogisticRole()) return;
+  if(!session || isLogisticRole() || isTlRole()) return;
   if(!navigator.onLine){showMsg('#saveMsg','Tidak bisa mengirim saat offline. Data tetap aman di perangkat.',true);return;}
   if(syncInProgress){showMsg('#saveMsg','Sinkronisasi sedang berjalan. Tunggu sampai selesai lalu coba lagi.',true);return;}
 
@@ -1117,7 +1282,7 @@ async function renderPhotoVault() {
   if (!session || !$('#photoVaultList')) return;
   const username = String(session.username || '').toLowerCase();
   const rows = (await photoAll())
-    .filter(p => String(p.ownerUsername || '').toLowerCase() === username)
+    .filter(p => (!p.recordType || p.recordType === 'QRIS_PROOF') && String(p.ownerUsername || '').toLowerCase() === username)
     .sort((a,b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
   $('#photoVaultCount').textContent = String(rows.length);
@@ -1189,7 +1354,7 @@ async function savePhotoToDevice(record) {
 async function downloadAllQrisPhotos(){
   if(!session||isLogisticRole())return;
   const user=String(session.username||'').toLowerCase();
-  const rows=(await photoAll()).filter(p=>String(p.ownerUsername||'').toLowerCase()===user&&p.blob)
+  const rows=(await photoAll()).filter(p=>(!p.recordType||p.recordType==='QRIS_PROOF')&&String(p.ownerUsername||'').toLowerCase()===user&&p.blob)
     .sort((a,b)=>Number(a.clientTimestamp||0)-Number(b.clientTimestamp||0));
   if(!rows.length){showMsg('#saveMsg','Tidak ada foto QRIS lokal di HP ini.',true);return;}
   setButton('#downloadAllQrisBtn',true,`MENYIAPKAN ${rows.length} FOTO...`);
@@ -1328,6 +1493,220 @@ const LOGISTIC_TYPE_META = {
   DAMAGE:{label:'RUSAK / WASTE',sign:-1},
   SALE:{label:'PENJUALAN SPG',sign:-1}
 };
+
+
+function ensureInterviewDate() {
+  const el = $('#interviewDate');
+  if (el) el.value = jakartaDateKey(Date.now());
+}
+
+function selectedInterviewRadio(name) {
+  return $(`#interviewView input[name="${name}"]:checked`)?.value || '';
+}
+
+function selectedInterviewChecks(name) {
+  return $$(`#interviewView input[name="${name}"]:checked`).map(x => x.value);
+}
+
+function renderInterviewShiftPreview() {
+  const before = [1,2,3].map(i => Number(selectedInterviewRadio(`beforeQ${i}`) || 0)).filter(Boolean);
+  const after = [1,2,3].map(i => Number(selectedInterviewRadio(`afterQ${i}`) || 0)).filter(Boolean);
+  const el = $('#interviewShiftPreview');
+  if (!el) return;
+  if (before.length !== 3 || after.length !== 3) { el.textContent = 'Lengkapi penilaian untuk melihat perubahan persepsi.'; return; }
+  const b = before.reduce((a,v)=>a+v,0)/3;
+  const a = after.reduce((a,v)=>a+v,0)/3;
+  const shift = a-b;
+  el.innerHTML = `Perubahan persepsi: <strong>${shift >= 0 ? '+' : ''}${shift.toFixed(2)}</strong> / 5`;
+  el.classList.toggle('positive', shift > 0.05);
+  el.classList.toggle('negative', shift < -0.05);
+}
+
+function resetConsumerInterviewForm() {
+  const form = $('#consumerInterviewForm');
+  if (form) form.reset();
+  ensureInterviewDate();
+  $('#interviewAge').value = '';
+  $('#interviewGender').value = '';
+  $('#interviewStatus').value = '';
+  $('#interviewQty').value = '1';
+  $('#interviewOrderId').value = '';
+  $('#interviewComment').value = '';
+  interviewTried=false;
+  $('#interviewAfterSection').classList.add('hidden');
+  $('#interviewTriedBtn').disabled=false;
+  $('#interviewTriedBtn').textContent='SUDAH MENCOBA PEACH TEA';
+  $('#interviewTriedStatus').textContent='Belum dikonfirmasi.';
+  $('#interviewTriedStatus').classList.remove('confirmed');
+  $('#interviewShiftPreview').textContent = 'Lengkapi penilaian untuk melihat perubahan persepsi.';
+  $('#interviewShiftPreview').classList.remove('positive','negative');
+  resetInterviewPhotoPreview();
+}
+
+function validateInterviewForm() {
+  const age = $('#interviewAge').value;
+  const gender = $('#interviewGender').value;
+  const consumerStatus = $('#interviewStatus').value;
+  const purchaseOrderId = $('#interviewOrderId').value.trim().toUpperCase();
+  const qty = Math.max(1, Math.min(99, Number($('#interviewQty').value || 0)));
+  const beforeFit = selectedInterviewRadio('beforeFit');
+  const afterFit = selectedInterviewRadio('afterFit');
+  const before = [1,2,3].map(i => Number(selectedInterviewRadio(`beforeQ${i}`) || 0));
+  const after = [1,2,3].map(i => Number(selectedInterviewRadio(`afterQ${i}`) || 0));
+  const reasons = selectedInterviewChecks('reasons');
+  const purchaseReasons = selectedInterviewChecks('purchaseReasons');
+  const repeat = selectedInterviewRadio('repeatPurchase');
+  const recommend = selectedInterviewRadio('recommend');
+  const familiarity = selectedInterviewRadio('familiarity');
+  const photoUsageConsent = selectedInterviewRadio('photoUsageConsent') || 'TIDAK';
+  if (!purchaseOrderId) return {ok:false,error:'Masukkan ID Pesanan Peach Tea.'};
+  if (!age) return {ok:false,error:'Pilih kelompok usia konsumen.'};
+  if (!gender) return {ok:false,error:'Pilih gender konsumen.'};
+  if (!consumerStatus) return {ok:false,error:'Pilih status konsumen.'};
+  if (!qty || qty < 1) return {ok:false,error:'Jumlah Peach Tea harus minimal 1.'};
+  if (!familiarity) return {ok:false,error:'Pilih apakah konsumen pernah mengenal/mengonsumsi Kratingdaeng sebelumnya.'};
+  if (!beforeFit) return {ok:false,error:'Lengkapi pilihan image sebelum membeli.'};
+  if (!interviewTried) return {ok:false,error:'Pastikan konsumen sudah mencoba Peach Tea sebelum masuk ke AFTER.'};
+  if (!afterFit) return {ok:false,error:'Lengkapi pilihan image setelah mencoba.'};
+  if (before.some(v=>v<1||v>5) || after.some(v=>v<1||v>5)) return {ok:false,error:'Lengkapi seluruh penilaian 1–5 sebelum dan sesudah.'};
+  if (!purchaseReasons.length) return {ok:false,error:'Pilih minimal satu alasan konsumen memilih Peach Tea.'};
+  if (!reasons.length) return {ok:false,error:'Pilih minimal satu hal yang membuat Peach Tea terasa cocok.'};
+  if (!repeat || !recommend) return {ok:false,error:'Lengkapi niat beli ulang dan rekomendasi.'};
+  if (!$('#interviewPhotoConsent').checked) return {ok:false,error:'Persetujuan foto konsumen wajib.'};
+  if (!currentInterviewPhotoId) return {ok:false,error:'Ambil foto konsumen terlebih dahulu.'};
+  return {ok:true,qty,purchaseOrderId,age,gender,consumerStatus,beforeFit,afterFit,before,after,reasons,purchaseReasons,repeat,recommend,familiarity,photoUsageConsent};
+}
+
+async function saveConsumerInterview() {
+  if (!session || !isTlRole()) return;
+  const check = validateInterviewForm();
+  if (!check.ok) { showMsg('#interviewSaveMsg', check.error, true); return; }
+  const photo=await photoGet(currentInterviewPhotoId);
+  if(!photo?.blob || photo.recordType!=='CONSUMER_INTERVIEW_PHOTO'){showMsg('#interviewSaveMsg','Foto konsumen tidak ditemukan. Ambil ulang foto.',true);return;}
+  const now = Date.now();
+  const id = 'INT-' + randomId8() + randomId8();
+  const deviceId = await metaGet(DEVICE_KEY);
+  photo.interviewId=id;
+  photo.state='COMMITTED';
+  photo.uploadStatus=photo.uploadStatus==='UPLOADED'?'UPLOADED':'PENDING';
+  photo.ageGroup=check.age;
+  photo.photoUsageConsent=check.photoUsageConsent;
+  photo.updatedAt=new Date().toISOString();
+  await photoPut(photo);
+  const record = {
+    idTransaksi:id,
+    idInterview:id,
+    recordType:'CONSUMER_INTERVIEW',
+    ownerUsername:String(session.username || '').toLowerCase(),
+    tlUsername:session.username || '',
+    namaTL:session.namaUser || session.username || '',
+    event:session.event || '',
+    lokasi:session.lokasi || '',
+    interviewDate:$('#interviewDate').value || jakartaDateKey(now),
+    clientTimestamp:now,
+    ageGroup:check.age,
+    peachTeaQty:check.qty,
+    familiarity:check.familiarity,
+    beforeFit:check.beforeFit,
+    beforeQ1:check.before[0],
+    beforeQ2:check.before[1],
+    beforeQ3:check.before[2],
+    afterFit:check.afterFit,
+    afterQ1:check.after[0],
+    afterQ2:check.after[1],
+    afterQ3:check.after[2],
+    reasons:check.reasons,
+    repeatPurchase:check.repeat,
+    recommend:check.recommend,
+    comment:$('#interviewComment').value.trim().slice(0,500),
+    deviceId,
+    gender:check.gender,
+    consumerStatus:check.consumerStatus,
+    purchaseReasons:check.purchaseReasons,
+    purchaseOrderId:check.purchaseOrderId,
+    triedPeachTea:'YA',
+    photoConsent:'YA',
+    photoUsageConsent:check.photoUsageConsent,
+    photoId:photo.photoId,
+    photoDriveUrl:photo.driveUrl||'',
+    photoDriveFileId:photo.driveFileId||'',
+    photoDriveFileName:photo.driveFileName||'',
+    createdAt:now,
+    syncStatus:'PENDING',
+    lastSyncError:''
+  };
+  await queuePut(record);
+  currentInterviewPhotoId='';
+  resetConsumerInterviewForm();
+  showMsg('#interviewSaveMsg', navigator.onLine ? 'Interview tersimpan • foto aman di perangkat • sedang dikirim…' : 'Interview + foto tersimpan di perangkat.', false);
+  await updateInterviewMetrics();
+  await refreshConsumerInterviewSummary();
+  if (navigator.onLine) setTimeout(syncAll, 250);
+}
+
+async function refreshConsumerInterviewSummary() {
+  if (!session || !isTlRole()) return;
+  const date = $('#interviewDate')?.value || jakartaDateKey(Date.now());
+  const localRows = (await queueAll()).filter(r => String(r.ownerUsername||'').toLowerCase() === String(session.username||'').toLowerCase() && r.recordType === 'CONSUMER_INTERVIEW');
+  let backend = {ok:true,total:0,beforeAvg:0,afterAvg:0,shift:0,repeatRate:0,firstTimeRate:0,beforeProfile:{},afterProfile:{},topReasons:[],purchaseReasons:[],byAge:{},byGender:{},byStatus:{},samplingTargetPerVenue:Number(window.KTD_CONFIG?.INTERVIEW_TARGET_PER_VENUE||20)};
+  if (navigator.onLine) {
+    try { backend = await KtdBridge.call('getConsumerInterviewSummary', {token:await metaGet(TOKEN_KEY), date, location:session.lokasi || ''}); }
+    catch (_) {}
+  }
+  const localForDate = localRows.filter(r => String(r.interviewDate || jakartaDateKey(r.createdAt)).slice(0,10) === date);
+  const localStats = summarizeLocalInterviews(localForDate);
+  const total = Number(backend.total||0) + localStats.total;
+  const beforeAvg = combineAverage(Number(backend.beforeAvg||0), Number(backend.total||0), localStats.beforeAvg, localStats.total);
+  const afterAvg = combineAverage(Number(backend.afterAvg||0), Number(backend.total||0), localStats.afterAvg, localStats.total);
+  const shift = total ? afterAvg-beforeAvg : 0;
+  $('#interviewTotalCount').textContent = formatNumber(total);
+  $('#interviewBeforeAvg').textContent = total ? beforeAvg.toFixed(2) : '—';
+  $('#interviewAfterAvg').textContent = total ? afterAvg.toFixed(2) : '—';
+  $('#interviewShiftScore').textContent = total ? `${shift >= 0 ? '+' : ''}${shift.toFixed(2)}` : '—';
+  $('#interviewRepeatRate').textContent = total ? `${Math.round(((Number(backend.repeatRate||0)*Number(backend.total||0)) + (localStats.repeatYes)) / total * 100)}%` : '—';
+  const beforeGenZ = Number((backend.beforeProfile || {})['Anak muda / Gen Z'] || 0) + Number((localStats.beforeProfile || {})['Anak muda / Gen Z'] || 0);
+  const afterGenZ = Number((backend.afterProfile || {})['Anak muda / Gen Z'] || 0) + Number((localStats.afterProfile || {})['Anak muda / Gen Z'] || 0);
+  $('#interviewGenZShift').textContent = total ? `${Math.round(afterGenZ/total*100)}%` : '—';
+  $('#interviewGenZShiftDetail').textContent = total ? `Sebelum ${Math.round(beforeGenZ/total*100)}% → Sesudah ${Math.round(afterGenZ/total*100)}%` : 'Belum ada data';
+  const target=Number(backend.samplingTargetPerVenue||window.KTD_CONFIG?.INTERVIEW_TARGET_PER_VENUE||20);
+  $('#interviewSamplingStatus').textContent=`${formatNumber(total)} / ${formatNumber(target)}`;
+  renderInterviewProfiles(backend.beforeProfile || {}, localStats.beforeProfile, '#interviewBeforeProfile');
+  renderInterviewProfiles(backend.afterProfile || {}, localStats.afterProfile, '#interviewAfterProfile');
+  renderInterviewProfiles(backend.byAge || {}, localStats.byAge, '#interviewAgeProfile');
+  renderInterviewProfiles(backend.byGender || {}, localStats.byGender, '#interviewGenderProfile');
+  renderInterviewProfiles(backend.byStatus || {}, localStats.byStatus, '#interviewStatusProfile');
+  renderInterviewReasons(mergeReasonStats(backend.purchaseReasons || [], localStats.purchaseReasons), '#interviewPurchaseReasons');
+  renderInterviewReasons(mergeReasonStats(backend.topReasons || [], localStats.topReasons), '#interviewReasons');
+  const status = $('#interviewSummaryStatus');
+  if (status) status.textContent = `${date} • ${total} interview • backend ${Number(backend.total||0)} • lokal ${localStats.total}`;
+}
+
+function combineAverage(a,na,b,nb){ const total=Number(na||0)+Number(nb||0); return total ? ((Number(a||0)*Number(na||0))+(Number(b||0)*Number(nb||0)))/total : 0; }
+function summarizeLocalInterviews(rows){
+  if(!rows.length)return {total:0,beforeAvg:0,afterAvg:0,repeatYes:0,beforeProfile:{},afterProfile:{},byAge:{},byGender:{},byStatus:{},topReasons:[],purchaseReasons:[]};
+  const bp={},ap={},age={},gender={},status={},reasons={},purchaseReasons={}; let bsum=0,asum=0,repeatYes=0;
+  rows.forEach(r=>{ const b=[r.beforeQ1,r.beforeQ2,r.beforeQ3].map(Number); const a=[r.afterQ1,r.afterQ2,r.afterQ3].map(Number); bsum+=b.reduce((x,v)=>x+v,0)/3; asum+=a.reduce((x,v)=>x+v,0)/3; bp[r.beforeFit]=(bp[r.beforeFit]||0)+1; ap[r.afterFit]=(ap[r.afterFit]||0)+1; age[r.ageGroup]=(age[r.ageGroup]||0)+1; gender[r.gender]=(gender[r.gender]||0)+1; status[r.consumerStatus]=(status[r.consumerStatus]||0)+1; if(String(r.repeatPurchase||'').toUpperCase()==='YA')repeatYes++; (r.reasons||[]).forEach(x=>reasons[x]=(reasons[x]||0)+1); (r.purchaseReasons||[]).forEach(x=>purchaseReasons[x]=(purchaseReasons[x]||0)+1); });
+  return {total:rows.length,beforeAvg:bsum/rows.length,afterAvg:asum/rows.length,repeatYes,beforeProfile:bp,afterProfile:ap,byAge:age,byGender:gender,byStatus:status,topReasons:Object.entries(reasons).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,6),purchaseReasons:Object.entries(purchaseReasons).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,6)};
+}
+function mergeReasonStats(server, local){ const m={}; [...(server||[]),...(local||[])].forEach(x=>{const k=String(x.label||''); if(!k)return; m[k]=(m[k]||0)+Number(x.count||0);}); return Object.entries(m).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,6); }
+function renderInterviewProfiles(server,local,selector){ const m={}; Object.entries(server||{}).forEach(([k,v])=>m[k]=Number(v||0)); Object.entries(local||{}).forEach(([k,v])=>m[k]=(m[k]||0)+Number(v||0)); const el=$(selector); if(!el)return; const rows=Object.entries(m).filter(([k])=>k&&k!=='undefined').sort((a,b)=>b[1]-a[1]); el.innerHTML=rows.length?rows.map(([k,v])=>`<div class="insight-row"><span>${esc(k)}</span><strong>${formatNumber(v)}</strong></div>`).join(''):'<div class="empty-state">Belum ada data.</div>'; }
+function renderInterviewReasons(rows,selector){ const el=$(selector); if(!el)return; el.innerHTML=(rows||[]).length?(rows||[]).map(x=>`<div class="insight-row"><span>${esc(x.label)}</span><strong>${formatNumber(x.count)}</strong></div>`).join(''):'<div class="empty-state">Belum ada data.</div>'; }
+
+function renderInterviewSyncStatus(pending,errors,online,syncing){
+  const status=$('#interviewSyncStatus'), headline=$('#interviewSyncHeadline'), detail=$('#interviewSyncDetail'); if(!status||!headline||!detail)return;
+  let h='Semua interview tersimpan',d='Interview akan dikirim otomatis saat koneksi tersedia.',state='ready';
+  if(syncing){h='Menyinkronkan interview…';d='Jangan tutup aplikasi sampai proses selesai.';state='syncing';}
+  else if(!online){h='Offline — interview tetap tersimpan';d=pending?`${formatNumber(pending)} interview menunggu koneksi.`:'Interview baru akan dikirim saat koneksi tersedia.';state='offline';}
+  else if(errors){h=`${formatNumber(errors)} interview perlu dikirim ulang`;d=pending?`${formatNumber(pending)} interview masih menunggu pengiriman.`:'Tekan SYNC DATA untuk mencoba lagi.';state='attention';}
+  else if(pending){h=`${formatNumber(pending)} interview menunggu pengiriman`;d='Akan dikirim otomatis saat koneksi siap.';state='attention';}
+  headline.textContent=h;detail.textContent=d;status.classList.remove('syncing','attention','offline');if(state!=='ready')status.classList.add(state);
+}
+
+async function updateInterviewMetrics(){
+  if(!session||!isTlRole())return;
+  const pending=await interviewPendingCountForUser(session.username), errors=await interviewErrorCountForUser(session.username), today=await interviewTodayCountForUser(session.username);
+  $('#interviewPendingCount').textContent=String(pending);$('#interviewPendingChip').textContent=`${pending} BELUM TERKIRIM`;$('#interviewErrorCount').textContent=String(errors);$('#interviewTodayCount').textContent=String(today); renderInterviewSyncStatus(pending,errors,navigator.onLine,syncInProgress);
+}
 
 function renderLogisticLocations() {
   const select = $('#logisticLocation');
@@ -1743,6 +2122,20 @@ async function updateMetrics() {
     return;
   }
 
+  if (isTlRole()) {
+    const pending = await interviewPendingCountForUser(session.username);
+    const errors = await interviewErrorCountForUser(session.username);
+    const today = await interviewTodayCountForUser(session.username);
+    $('#interviewPendingCount').textContent = String(pending);
+    $('#interviewPendingChip').textContent = `${pending} BELUM TERKIRIM`;
+    $('#interviewErrorCount').textContent = String(errors);
+    $('#interviewTodayCount').textContent = String(today);
+    $('#interviewOfflineDuration').textContent = off ? formatDuration(Date.now() - new Date(off).getTime()) : '0m';
+    $('#interviewLastSyncAt').textContent = last ? formatDateTime(last) : 'Belum pernah';
+    renderInterviewSyncStatus(pending, errors, online, syncInProgress);
+    return;
+  }
+
   const pending = await queueCountForUser(session.username);
   const errors = await queueErrorCountForUser(session.username);
   const photos = await photoPendingCountForUser(session.username);
@@ -1816,6 +2209,7 @@ function updateNetworkState(forceSyncing) {
   const text = forceSyncing || syncInProgress ? 'SYNCING...' : (online ? 'ONLINE' : 'OFFLINE');
   if ($('#netStatus')) $('#netStatus').textContent = text;
   if ($('#logisticNetStatus')) $('#logisticNetStatus').textContent = text;
+  if ($('#interviewNetStatus')) $('#interviewNetStatus').textContent = text;
   if ($('#syncStatus') && (forceSyncing || syncInProgress)) $('#syncStatus').classList.add('syncing');
   if ($('#logisticSyncStatus') && (forceSyncing || syncInProgress)) $('#logisticSyncStatus').classList.add('syncing');
 }
@@ -1937,6 +2331,10 @@ function photoAll() {
   return reqP(store(STORE_PHOTOS).getAll()).then(rows => rows || []);
 }
 
+function photoDelete(id) {
+  return reqP(store(STORE_PHOTOS, 'readwrite').delete(id));
+}
+
 function logisticPut(row) {
   const s = store(STORE_LOGISTIC, 'readwrite');
   return reqP(idbPutCompat(s, row, row && row.idLogistic));
@@ -2008,27 +2406,95 @@ function queuePutMany(rows) {
   });
 }
 
+
+async function getPendingInterviewsForUser(username, limit) {
+  const u = String(username || '').toLowerCase();
+  const rows = await queueAll();
+  return rows.filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType === 'CONSUMER_INTERVIEW' && r.syncStatus !== 'ERROR')
+    .sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+    .slice(0, limit);
+}
+
+async function interviewPendingCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType === 'CONSUMER_INTERVIEW' && r.syncStatus !== 'ERROR').length;
+}
+
+async function interviewErrorCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType === 'CONSUMER_INTERVIEW' && r.syncStatus === 'ERROR').length;
+}
+
+async function interviewTodayCountForUser(username) {
+  const u = String(username || '').toLowerCase();
+  const start = new Date(); start.setHours(0,0,0,0);
+  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType === 'CONSUMER_INTERVIEW' && Number(r.createdAt || 0) >= start.getTime()).length;
+}
+
+async function resetInterviewErrorsForUser(username) {
+  const u = String(username || '').toLowerCase();
+  const rows = await queueAll();
+  const mine = rows.filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType === 'CONSUMER_INTERVIEW' && r.syncStatus === 'ERROR');
+  mine.forEach(r => { r.syncStatus = 'PENDING'; r.lastSyncError = ''; r.forceRetryAt = new Date().toISOString(); });
+  if (mine.length) await queuePutMany(mine);
+  return mine.length;
+}
+
+async function syncInterviewQueue(options = {}) {
+  const token = await metaGet(TOKEN_KEY);
+  if (!token || !session || !navigator.onLine || !isTlRole()) {
+    return {totalSynced:0,pendingRemaining:session ? await interviewPendingCountForUser(session.username) : 0,errorRemaining:session ? await interviewErrorCountForUser(session.username) : 0};
+  }
+  if (options.retryErrors) await resetInterviewErrorsForUser(session.username);
+  let totalSynced = 0;
+  while (navigator.onLine) {
+    const pending = await getPendingInterviewsForUser(session.username, Number(window.KTD_CONFIG?.INTERVIEW_BATCH_SIZE || 50));
+    if (!pending.length) break;
+    pending.forEach(row => { row.syncStatus = 'SYNCING'; row.lastSyncAttempt = new Date().toISOString(); });
+    await queuePutMany(pending);
+    let result;
+    try {
+      result = await KtdBridge.call('syncConsumerInterviews', {token, records:pending});
+    } catch (err) {
+      pending.forEach(row => { row.syncStatus='PENDING'; row.lastSyncError=String(err?.message || err); });
+      await queuePutMany(pending);
+      throw err;
+    }
+    const accepted = new Set([...(result.accepted || []), ...(result.duplicates || [])]);
+    const rejectedMap = new Map((result.rejected || []).map(x => [x.idInterview, x.error]));
+    for (const row of pending) {
+      if (accepted.has(row.idInterview)) { await queueDelete(row.idTransaksi); totalSynced++; }
+      else if (rejectedMap.has(row.idInterview)) { row.syncStatus='ERROR'; row.lastSyncError=rejectedMap.get(row.idInterview)||'Ditolak server.'; await queuePut(row); }
+      else { row.syncStatus='PENDING'; row.lastSyncError='Server belum mengonfirmasi interview.'; await queuePut(row); }
+    }
+    await new Promise(r => setTimeout(r, 60));
+  }
+  const pendingRemaining = await interviewPendingCountForUser(session.username);
+  const errorRemaining = await interviewErrorCountForUser(session.username);
+  return {totalSynced,pendingRemaining,errorRemaining};
+}
+
 async function getPendingForUser(username, limit) {
   const u = String(username || '').toLowerCase();
   const rows = await queueAll();
-  return rows.filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus !== 'ERROR')
+  return rows.filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType !== 'CONSUMER_INTERVIEW' && r.syncStatus !== 'ERROR')
     .sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
     .slice(0, limit);
 }
 
 async function queueCountForUser(username) {
   const u = String(username || '').toLowerCase();
-  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus !== 'ERROR').length;
+  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType !== 'CONSUMER_INTERVIEW' && r.syncStatus !== 'ERROR').length;
 }
 
 async function queueErrorCountForUser(username) {
   const u = String(username || '').toLowerCase();
-  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.syncStatus === 'ERROR').length;
+  return (await queueAll()).filter(r => String(r.ownerUsername || '').toLowerCase() === u && r.recordType !== 'CONSUMER_INTERVIEW' && r.syncStatus === 'ERROR').length;
 }
 
 async function photoPendingCountForUser(username) {
   const u = String(username || '').toLowerCase();
-  return (await photoAll()).filter(p => String(p.ownerUsername || '').toLowerCase() === u && p.state === 'COMMITTED' && p.uploadStatus !== 'UPLOADED').length;
+  return (await photoAll()).filter(p => (!p.recordType || p.recordType === 'QRIS_PROOF') && String(p.ownerUsername || '').toLowerCase() === u && p.state === 'COMMITTED' && p.uploadStatus !== 'UPLOADED').length;
 }
 
 async function migrateLegacyQueueOwner(cachedSession) {
