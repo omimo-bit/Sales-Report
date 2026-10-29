@@ -1,6 +1,6 @@
 window.KTD_CONFIG = {
   APP_VERSION: '2026.10.23.V8.1-TL-CONSUMER-INTERVIEW-PHOTO',
-  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzzzPB2FyxgaBEojV0DAuxtwaVYB1guEmBWhXg0R0piDd3YhEo9-MO0tCkHuD_9VM-8/exec',
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzhJB-XBby5oDzChAH_iyTuuxLhoIoS2Itb2acrfdFfANDWIo7SNsG3sRaomcH6Kgtb/exec',
   REQUEST_TIMEOUT_MS: 30000,
   BRIDGE_READY_TIMEOUT_MS: 15000,
   AUTO_SYNC_MS: 45000,
