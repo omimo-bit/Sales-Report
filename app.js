@@ -14,12 +14,12 @@ const OFFLINE_SINCE_KEY = 'offlineSince';
 const LAST_MAP_KEY = 'lastKnownMap';
 
 const STATIC_VENUES = [
-  {key:'STATIC|Cooltura Lampung|Logistic', lokasi:'Logistic', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Main Booth', lokasi:'Main Booth', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 1', lokasi:'Drink Stall 1', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 2', lokasi:'Drink Stall 2', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 3', lokasi:'Drink Stall 3', event:'Cooltura Lampung', map:''},
-  {key:'STATIC|Cooltura Lampung|Drink Stall 4', lokasi:'Drink Stall 4', event:'Cooltura Lampung', map:''}
+  {key:'STATIC|Cooltura Malang|Logistic', lokasi:'Logistic', event:'Cooltura Malang', map:''},
+  {key:'STATIC|Cooltura Malang|Main Booth', lokasi:'Main Booth', event:'Cooltura Malang', map:''},
+  {key:'STATIC|Cooltura Malang|Drink Stall 1', lokasi:'Drink Stall 1', event:'Cooltura Malang', map:''},
+  {key:'STATIC|Cooltura Malang|Drink Stall 2', lokasi:'Drink Stall 2', event:'Cooltura Malang', map:''},
+  {key:'STATIC|Cooltura Malang|Drink Stall 3', lokasi:'Drink Stall 3', event:'Cooltura Malang', map:''},
+  {key:'STATIC|Cooltura Malang|Drink Stall 4', lokasi:'Drink Stall 4', event:'Cooltura Malang', map:''}
 ];
 
 let db = null;
